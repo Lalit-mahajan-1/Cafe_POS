@@ -571,7 +571,7 @@ function RankingTable({
 
 export default function AdminDashboard() {
   const [filters, setFilters] = useState<Filters>({
-    period: "30d",
+    period: "all",
     userId: "",
     productId: "",
     search: "",
