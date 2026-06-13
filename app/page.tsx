@@ -1,3 +1,5 @@
-export default function HOME(){
-  return <h1>Welcome Home!</h1>
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/login");
 }
