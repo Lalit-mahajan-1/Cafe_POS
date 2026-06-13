@@ -13,5 +13,14 @@ async function getPosUser() {
 export default async function PosTerminal() {
   const user = await getPosUser();
 
-  return <POSClient user={{ name: user.name, email: user.email, role: user.role }} />;
+  return (
+    <POSClient
+      user={{
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+      }}
+    />
+  );
 }

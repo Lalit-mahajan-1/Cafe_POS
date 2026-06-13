@@ -18,7 +18,10 @@ import {
   Coffee,
   Menu,
   X,
+  UserCircle,
 } from "lucide-react";
+import UserAvatar from "@/components/UserAvatar";
+import { PROFILE_UPDATED_EVENT } from "@/lib/profile-events";
 
 const fraunces = Fraunces({
   weight: ["300", "400", "700", "900"],
@@ -39,6 +42,7 @@ const navItems = [
   { label: "Tables", icon: Table2, href: "/admin/tables" },
   { label: "Orders", icon: ClipboardList, href: "/admin/orders" },
   { label: "Users", icon: Users, href: "/admin/users" },
+  { label: "Profile", icon: UserCircle, href: "/admin/profile" },
   { label: "Settings", icon: Settings, href: "/admin/settings" },
 ];
 
@@ -55,6 +59,7 @@ export default function AdminLayout({
     name: string;
     role: string;
     email: string;
+    avatar?: string | null;
   } | null>(null);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [statusText, setStatusText] = useState("Checking access...");
@@ -90,7 +95,12 @@ export default function AdminLayout({
         }
 
         const data = (await response.json()) as {
-          user?: { name: string; role: string; email: string };
+          user?: {
+            name: string;
+            role: string;
+            email: string;
+            avatar?: string | null;
+          };
         };
 
         if (!data.user || data.user.role !== "ADMIN") {
@@ -125,6 +135,23 @@ export default function AdminLayout({
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const refreshProfile = async () => {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.user) setUser(data.user);
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+  }, []);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -238,11 +265,20 @@ export default function AdminLayout({
 
         {/* User Section */}
         <div className="mt-auto rounded-lg border border-[#705C53]/60 bg-[#705C53]/20 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#F3EFE8]/60">
-            Signed in
-          </p>
-          <p className="mt-2 truncate font-semibold">{user.name}</p>
-          <p className="truncate text-sm text-[#F3EFE8]/65">{user.email}</p>
+          <Link
+            href="/admin/profile"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-3 transition hover:opacity-90"
+          >
+            <UserAvatar name={user.name} avatar={user.avatar} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-[0.18em] text-[#F3EFE8]/60">
+                Signed in
+              </p>
+              <p className="mt-1 truncate font-semibold">{user.name}</p>
+              <p className="truncate text-sm text-[#F3EFE8]/65">{user.email}</p>
+            </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-[#FDFBF7] px-3 py-2 text-sm font-semibold text-[#000505] transition hover:bg-[#F3EFE8]"

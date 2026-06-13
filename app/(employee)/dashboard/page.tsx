@@ -118,7 +118,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#F3EFE8] text-[#000505]">
-      <EmployeeSidebar userName={user.name} userEmail={user.email} />
+      <EmployeeSidebar userName={user.name} userEmail={user.email} userAvatar={user.avatar} />
 
       <section className="lg:ml-72">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">

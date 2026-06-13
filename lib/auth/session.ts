@@ -41,6 +41,7 @@ export const getCurrentUser = async (request?: RequestLike) => {
       role: true,
       archived: true,
       avatar: true,
+      provider: true,
       createdAt: true,
     },
   });

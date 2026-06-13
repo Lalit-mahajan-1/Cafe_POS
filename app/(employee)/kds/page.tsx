@@ -58,7 +58,7 @@ export default async function KitchenDisplay() {
   const { user, orders, cancelledOrders } = await getKitchenData();
   return (
 
-    <><EmployeeSidebar userName={user.name} userEmail={user.email}/>
+    <><EmployeeSidebar userName={user.name} userEmail={user.email} userAvatar={user.avatar}/>
 
       <main className="min-h-screen lg:ml-72 bg-[#F3EFE8] text-[#000505]"> 
 

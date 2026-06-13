@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -9,14 +9,18 @@ import {
   LayoutDashboard,
   LogOut,
   ReceiptText,
+  UserCircle,
   Users,
   Menu,
   X,
 } from "lucide-react";
+import UserAvatar from "@/components/UserAvatar";
+import { PROFILE_UPDATED_EVENT } from "@/lib/profile-events";
 
 type EmployeeSidebarProps = {
   userName: string;
   userEmail: string;
+  userAvatar?: string | null;
 };
 
 const navItems = [
@@ -24,15 +28,47 @@ const navItems = [
   { label: "POS Terminal", href: "/pos", icon: ReceiptText },
   { label: "Kitchen Display", href: "/kds", icon: ChefHat },
   { label: "Table Seats", href: "/book-seat", icon: Users },
+  { label: "Profile", href: "/profile", icon: UserCircle },
 ];
 
 export default function EmployeeSidebar({
   userName,
   userEmail,
+  userAvatar: initialAvatar,
 }: EmployeeSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [userNameState, setUserNameState] = useState(userName);
+  const [userEmailState, setUserEmailState] = useState(userEmail);
+  const [userAvatar, setUserAvatar] = useState(initialAvatar ?? null);
+
+  useEffect(() => {
+    setUserNameState(userName);
+    setUserEmailState(userEmail);
+    setUserAvatar(initialAvatar ?? null);
+  }, [userName, userEmail, initialAvatar]);
+
+  useEffect(() => {
+    const refreshProfile = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.user) {
+          setUserNameState(data.user.name);
+          setUserEmailState(data.user.email);
+          setUserAvatar(data.user.avatar ?? null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+    return () =>
+      window.removeEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+  }, []);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -138,15 +174,19 @@ export default function EmployeeSidebar({
 
         {/* User Section */}
         <div className="mt-auto rounded-lg border border-[#705C53]/60 bg-[#705C53]/20 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#F3EFE8]/60">
-            Signed in
-          </p>
-
-          <p className="mt-2 truncate font-semibold">{userName}</p>
-
-          <p className="truncate text-sm text-[#F3EFE8]/65">
-            {userEmail}
-          </p>
+          <Link
+            href="/profile"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 transition hover:opacity-90"
+          >
+            <UserAvatar name={userNameState} avatar={userAvatar} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{userNameState}</p>
+              <p className="truncate text-sm text-[#F3EFE8]/65">
+                {userEmailState}
+              </p>
+            </div>
+          </Link>
 
           <button
             onClick={handleLogout}

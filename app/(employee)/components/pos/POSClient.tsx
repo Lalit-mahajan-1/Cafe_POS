@@ -20,9 +20,15 @@ import {
   TicketPercent,
 } from "lucide-react";
 import Link from "next/link";
+import UserAvatar from "@/components/UserAvatar";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type UserSummary = { name: string; email: string; role: "ADMIN" | "EMPLOYEE" };
+type UserSummary = {
+  name: string;
+  email: string;
+  role: "ADMIN" | "EMPLOYEE";
+  avatar?: string | null;
+};
 type Category = { id: string; name: string; color: string };
 type Product = {
   id: string;
@@ -512,7 +518,9 @@ export default function POSClient({ user }: { user: UserSummary }) {
 
         {/* ── Header ── */}
         <header className="flex flex-col gap-4 rounded-lg bg-[#FDFBF7] p-5 shadow-sm ring-1 ring-[#E6DDD1] lg:flex-row lg:items-center lg:justify-between">
-          <div>
+          <div className="flex items-center gap-4">
+            <UserAvatar name={user.name} avatar={user.avatar} size="lg" />
+            <div>
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-2 text-sm font-semibold text-[#705C53]"
@@ -526,6 +534,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
             <p className="mt-2 text-[#705C53]">
               {user.name} · {user.role}
             </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
