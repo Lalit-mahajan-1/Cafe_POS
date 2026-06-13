@@ -28,9 +28,12 @@ type Props = {
 function getGridCellStyle(table: FloorTable, isSelected: boolean) {
   const config = statusConfig[table.status];
   if (isSelected) {
-    return "border-[#C86446] bg-[#C86446] text-white shadow-lg scale-105";
+    return "border-[#C86446] bg-[#C86446] text-white shadow-lg scale-105 cursor-pointer";
   }
-  return `${config.gridBorder} ${config.gridBg} ${config.gridText} hover:shadow-md hover:scale-105`;
+  if (table.status === "RESERVED") {
+    return `${config.gridBorder} ${config.gridBg} ${config.gridText} opacity-60 cursor-not-allowed`;
+  }
+  return `${config.gridBorder} ${config.gridBg} ${config.gridText} hover:shadow-md hover:scale-105 cursor-pointer`;
 }
 
 export default function TableSelector({
@@ -166,7 +169,7 @@ export default function TableSelector({
                     { label: "Total", count: floorPlan.summary.total, color: "bg-[#C86446]" },
                     { label: "Available", count: floorPlan.summary.available, color: "bg-emerald-500" },
                     { label: "Occupied", count: floorPlan.summary.occupied, color: "bg-red-500" },
-                    { label: "Reserved", count: floorPlan.summary.reserved, color: "bg-amber-500" },
+                    { label: "Reserved", count: floorPlan.summary.reserved, color: "bg-yellow-500" },
                   ] as const
                 ).map((item) => (
                   <div
@@ -230,8 +233,12 @@ export default function TableSelector({
                       return (
                         <button
                           key={table.id}
-                          onClick={() => onSelectTable(table)}
-                          className={`aspect-square min-h-[64px] rounded-lg border-2 text-xs font-bold transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-1 ${getGridCellStyle(
+                          onClick={() => {
+                            if (table.status === "RESERVED") return;
+                            onSelectTable(table);
+                          }}
+                          disabled={table.status === "RESERVED"}
+                          className={`aspect-square min-h-[64px] rounded-lg border-2 text-xs font-bold transition-all duration-200 flex flex-col items-center justify-center gap-1 ${getGridCellStyle(
                             table,
                             isSelected
                           )}`}

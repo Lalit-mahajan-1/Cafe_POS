@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChefHat, Clock3, Minus, ReceiptText, RotateCcw, X, XCircle } from "lucide-react";
 import CartSidebar from "../pos/CartSidebar";
 import type { CartItem, Totals } from "../pos/pos-types";
@@ -75,6 +75,15 @@ export default function KitchenDisplayClient({
   const [cancelledId, setCancelledId] = useState<string | null>(null);
   const [showCancelledDialog, setShowCancelledDialog] = useState(false);
   const [message, setMessage] = useState("");
+
+  // ── Restore Timer ─────────────────────────────────────────────────────────
+  const RESTORE_TIMEOUT_MS = 300000; // 5 minutes
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Pay Dialog State ──────────────────────────────────────────────────────
   const [payOrder, setPayOrder] = useState<KitchenOrder | null>(null);
@@ -535,28 +544,42 @@ export default function KitchenDisplayClient({
               </div>
 
               <div className="mt-5 overflow-hidden rounded-lg border border-[#E6DDD1]">
-                <div className="grid grid-cols-[1fr_1fr_auto] bg-[#F3EFE8] px-4 py-3 text-sm font-semibold text-[#705C53]">
+                <div className="grid grid-cols-[1fr_1fr_1fr_auto] bg-[#F3EFE8] px-4 py-3 text-sm font-semibold text-[#705C53]">
                   <span>Order ID</span>
                   <span>Cancelled at</span>
+                  <span>Time left</span>
                   <span>Action</span>
                 </div>
-                {cancelledOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="grid grid-cols-[1fr_1fr_auto] items-center border-t border-[#E6DDD1] px-4 py-3 text-sm"
-                  >
-                    <strong>{order.orderNumber}</strong>
-                    <span>{formatTime(order.updatedAt)}</span>
-                    <button
-                      onClick={() => restoreOrder(order.id)}
-                      disabled={restoringId === order.id}
-                      className="inline-flex items-center gap-2 rounded-md bg-[#000505] px-3 py-2 text-xs font-semibold text-[#FDFBF7] transition hover:bg-[#705C53] disabled:opacity-60"
+                {cancelledOrders.map((order) => {
+                  const cancelledAt = new Date(order.updatedAt).getTime();
+                  const elapsed = now - cancelledAt;
+                  const expired = elapsed >= RESTORE_TIMEOUT_MS;
+                  const remaining = Math.max(0, RESTORE_TIMEOUT_MS - elapsed);
+                  const remainingSeconds = Math.ceil(remaining / 1000);
+                  const remainingMinutes = Math.floor(remainingSeconds / 60);
+                  const remainingSecs = remainingSeconds % 60;
+
+                  return (
+                    <div
+                      key={order.id}
+                      className={`grid grid-cols-[1fr_1fr_1fr_auto] items-center border-t border-[#E6DDD1] px-4 py-3 text-sm ${expired ? "opacity-50" : ""}`}
                     >
-                      <RotateCcw className="size-4" aria-hidden="true" />
-                      {restoringId === order.id ? "Restoring..." : "Restore"}
-                    </button>
-                  </div>
-                ))}
+                      <strong>{order.orderNumber}</strong>
+                      <span>{formatTime(order.updatedAt)}</span>
+                      <span className={expired ? "text-red-500 font-semibold" : "text-[#705C53]"}>
+                        {expired ? "Expired" : `${remainingMinutes}:${remainingSecs.toString().padStart(2, "0")}`}
+                      </span>
+                      <button
+                        onClick={() => restoreOrder(order.id)}
+                        disabled={restoringId === order.id || expired}
+                        className="inline-flex items-center gap-2 rounded-md bg-[#000505] px-3 py-2 text-xs font-semibold text-[#FDFBF7] transition hover:bg-[#705C53] disabled:opacity-60"
+                      >
+                        <RotateCcw className="size-4" aria-hidden="true" />
+                        {restoringId === order.id ? "Restoring..." : expired ? "Expired" : "Restore"}
+                      </button>
+                    </div>
+                  );
+                })}
                 {cancelledOrders.length === 0 && (
                   <div className="border-t border-[#E6DDD1] px-4 py-8 text-center text-sm text-[#705C53]">
                     No cancelled orders for this employee.

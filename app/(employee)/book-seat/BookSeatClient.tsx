@@ -72,10 +72,10 @@ const statusColors = {
     label: "Occupied",
   },
   RESERVED: {
-    bg: "bg-amber-50",
-    border: "border-amber-300",
-    text: "text-amber-700",
-    dot: "bg-amber-500",
+    bg: "bg-yellow-50",
+    border: "border-yellow-400",
+    text: "text-yellow-700",
+    dot: "bg-yellow-500",
     label: "Reserved",
   },
 };
@@ -498,7 +498,7 @@ export default function BookSeatClient({ user, isAdmin }: BookSeatClientProps) {
               { key: "ALL", label: "Total", count: summary.total, color: "bg-[#C86446]" },
               { key: "AVAILABLE", label: "Available", count: summary.available, color: "bg-emerald-500" },
               { key: "OCCUPIED", label: "Occupied", count: summary.occupied, color: "bg-red-500" },
-              { key: "RESERVED", label: "Reserved", count: summary.reserved, color: "bg-amber-500" },
+              { key: "RESERVED", label: "Reserved", count: summary.reserved, color: "bg-yellow-500" },
             ] as const
           ).map((item) => (
             <button
