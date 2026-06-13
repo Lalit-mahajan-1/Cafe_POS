@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   Loader2,
+  TicketPercent,
 } from "lucide-react";
 
 const fraunces = Fraunces({
@@ -30,6 +31,7 @@ const dmSans = DM_Sans({
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { label: "Products", icon: ShoppingBag, href: "/admin/products" },
+  { label: "Coupons", icon: TicketPercent, href: "/admin/coupons" },
   { label: "Tables", icon: Table2, href: "/admin/tables" },
   { label: "Orders", icon: ClipboardList, href: "/admin/orders" },
   { label: "Users", icon: Users, href: "/admin/users" },

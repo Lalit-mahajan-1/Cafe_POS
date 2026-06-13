@@ -16,8 +16,20 @@ enum Role {
 enum OrderStatus {
   DRAFT
   PAID
-  COMPLETED
   CANCELLED
+  COMPLETED
+}
+
+enum TableShape {
+  round
+  square
+  booth
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
 }
 
 model User {
@@ -30,25 +42,26 @@ model User {
   provider  String   @default("credentials")
   role      Role     @default(EMPLOYEE)
   archived  Boolean  @default(false)
-  orders    Order[]  // Orders created by this employee
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
   orders    Order[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  orders    Order[]
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
 model Category {
   id        String    @id @default(cuid())
   name      String    @unique
-  color     String    @default("#3b82f6") // hex color
+  color     String    @default("#3b82f6")
   products  Product[]
   createdAt DateTime  @default(now())
 }
@@ -57,8 +70,8 @@ model Product {
   id          String      @id @default(cuid())
   name        String
   price       Float
-  unit        String      @default("piece") // piece, kg, litre
-  tax         Float       @default(0)        // percentage e.g. 5 = 5%
+  unit        String      @default("piece")
+  tax         Float       @default(0)
   description String?
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
@@ -67,21 +80,23 @@ model Product {
 }
 
 model Order {
-  id           String      @id @default(cuid())
-  orderNumber  String      @unique
-  employeeId   String
-  employee     User        @relation(fields: [employeeId], references: [id])
-  customerId   String?
-  customer     Customer?   @relation(fields: [customerId], references: [id])
-  items        OrderItem[]
-  subtotal     Float
-  taxAmount    Float       @default(0)
-  discount     Float       @default(0)
-  total        Float
-  status       OrderStatus @default(DRAFT)
-  paymentMethod String?     // "cash", "card", "upi"
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  employeeId    String
+  employee      User        @relation(fields: [employeeId], references: [id])
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  tableId       String?
+  table         Table?      @relation(fields: [tableId], references: [id])
+  items         OrderItem[]
+  subtotal      Float
+  taxAmount     Float       @default(0)
+  discount      Float       @default(0)
+  total         Float
+  status        OrderStatus @default(DRAFT)
+  paymentMethod String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model OrderItem {
@@ -93,4 +108,51 @@ model OrderItem {
   quantity  Int
   unitPrice Float
   lineTotal Float
+}
+
+model Floor {
+  id        String   @id @default(cuid())
+  name      String   @default("Main Floor")
+  rows      Int
+  cols      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tables    Table[]
+}
+
+model Table {
+  id        String      @id @default(cuid())
+  label     String
+  row       Int
+  col       Int
+  seats     Int         @default(4)
+  width     Int         @default(2)
+  height    Int         @default(2)
+  shape     TableShape  @default(round)
+  isActive  Boolean     @default(true)
+  status    TableStatus @default(AVAILABLE)
+  floorId   String
+  floor     Floor       @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  orders    Order[]
+  bookings  Booking[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Booking {
+  id         String   @id @default(cuid())
+  tableId    String
+  table      Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  guestName  String?
+  guestPhone String?
+  guestCount Int      @default(1)
+  date       DateTime
+  startTime  String
+  endTime    String?
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

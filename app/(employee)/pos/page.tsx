@@ -1,4 +1,4 @@
-import POSClient from "@/app/components/pos/POSClient";
+import POSClient from "@/app/(employee)/components/pos/POSClient";
 import { requireRole } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 

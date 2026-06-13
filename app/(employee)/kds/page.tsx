@@ -1,8 +1,8 @@
-import KitchenDisplayClient from "@/app/components/kds/KitchenDisplayClient";
+import KitchenDisplayClient from "@/app/(employee)/components/kds/KitchenDisplayClient";
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import EmployeeSidebar from "@/app/components/employee/EmployeeSidebar";
+import EmployeeSidebar from "@/app/(employee)/components/EmployeeSidebar";
 
 async function getKitchenData() {
   try {

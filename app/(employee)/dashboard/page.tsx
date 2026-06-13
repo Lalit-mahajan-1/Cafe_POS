@@ -1,6 +1,6 @@
-import EmployeeMetricCard from "@/app/components/employee/EmployeeMetricCard";
-import EmployeeSidebar from "@/app/components/employee/EmployeeSidebar";
-import EmployeeTaskCard from "@/app/components/employee/EmployeeTaskCard";
+import EmployeeMetricCard from "@/app/(employee)/components/EmployeeMetricCard";
+import EmployeeSidebar from "@/app/(employee)/components/EmployeeSidebar";
+import EmployeeTaskCard from "@/app/(employee)/components/EmployeeTaskCard";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import {
