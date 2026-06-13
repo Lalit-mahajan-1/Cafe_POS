@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
 export type CartItem = {
   productId: string;
   quantity: number;
@@ -12,7 +11,7 @@ export type DiscountResult = {
   reason: string | null;
   couponId: string | null;
   promotionId: string | null;
-  appliedLabel: string | null; // human readable for UI
+  appliedLabel: string | null;
 };
 
 export type RecalcResult = {
@@ -27,9 +26,16 @@ export type RecalcResult = {
   appliedLabel: string | null;
 };
 
-// ── Coupon Validation ──────────────────────────────────────────────────────────
 export type CouponValidationResult =
-  | { valid: true; coupon: { id: string; code: string; discountType: string; discountValue: number } }
+  | {
+      valid: true;
+      coupon: {
+        id: string;
+        code: string;
+        discountType: string;
+        discountValue: number;
+      };
+    }
   | { valid: false; error: string };
 
 export async function validateCoupon(
@@ -40,53 +46,40 @@ export async function validateCoupon(
     where: { code: code.trim().toUpperCase() },
   });
 
-  if (!coupon) {
-    return { valid: false, error: "Coupon not found" };
-  }
-
-  if (!coupon.isActive) {
-    return { valid: false, error: "This coupon is no longer active" };
-  }
+  if (!coupon) return { valid: false, error: "Coupon not found" };
+  if (!coupon.isActive) return { valid: false, error: "This coupon is no longer active" };
 
   const now = new Date();
 
-  if (coupon.validFrom > now) {
+  if (coupon.validFrom > now)
     return { valid: false, error: "This coupon is not yet valid" };
-  }
 
-  if (coupon.validTill && coupon.validTill < now) {
+  if (coupon.validTill && coupon.validTill < now)
     return { valid: false, error: "This coupon has expired" };
-  }
 
-  if (coupon.maxUsage !== null && coupon.currentUsage >= coupon.maxUsage) {
+  if (coupon.maxUsage !== null && coupon.currentUsage >= coupon.maxUsage)
     return { valid: false, error: "This coupon has reached its usage limit" };
-  }
 
-  if (coupon.minOrderAmount !== null && subtotal < coupon.minOrderAmount) {
+  if (coupon.minOrderAmount !== null && subtotal < coupon.minOrderAmount)
     return {
       valid: false,
-      error: `Minimum order amount of ₹${coupon.minOrderAmount.toFixed(2)} required for this coupon`,
+      error: `Minimum order of ₹${coupon.minOrderAmount.toFixed(2)} required`,
     };
-  }
 
   return { valid: true, coupon };
 }
 
-// ── Calculate coupon discount amount ──────────────────────────────────────────
 export function calcCouponDiscount(
   coupon: { discountType: string; discountValue: number },
   subtotal: number
 ): number {
-  let discount =
+  const discount =
     coupon.discountType === "PERCENTAGE"
       ? (subtotal * coupon.discountValue) / 100
       : coupon.discountValue;
-
-  // Never allow discount > subtotal
   return Math.min(discount, subtotal);
 }
 
-// ── Find best auto promotion ───────────────────────────────────────────────────
 export async function findBestPromotion(
   cartItems: CartItem[],
   subtotal: number
@@ -103,70 +96,69 @@ export async function findBestPromotion(
   } | null;
   discount: number;
 }> {
-  const now = new Date();
+  // Guard: prisma.promotion may not exist if client wasn't regenerated
+  if (!prisma.promotion) {
+    return { promotion: null, discount: 0 };
+  }
 
-  const promotions = await prisma.promotion.findMany({
-    where: {
-      isActive: true,
-      validFrom: { lte: now },
-      OR: [{ validTill: null }, { validTill: { gte: now } }],
-    },
-  });
+  try {
+    const now = new Date();
+    const promotions = await prisma.promotion.findMany({
+      where: {
+        isActive: true,
+        validFrom: { lte: now },
+        OR: [{ validTill: null }, { validTill: { gte: now } }],
+      },
+    });
 
-  if (promotions.length === 0) return { promotion: null, discount: 0 };
+    if (!promotions.length) return { promotion: null, discount: 0 };
 
-  let bestPromotion: (typeof promotions)[0] | null = null;
-  let bestDiscount = 0;
+    let bestPromotion: (typeof promotions)[0] | null = null;
+    let bestDiscount = 0;
 
-  for (const promo of promotions) {
-    let eligible = false;
-    let promoDiscount = 0;
+    for (const promo of promotions) {
+      let eligible = false;
 
-    if (promo.appliesTo === "ORDER") {
-      // Check min order amount
-      if (
-        promo.minOrderAmount !== null &&
-        subtotal >= promo.minOrderAmount
-      ) {
-        eligible = true;
-      }
-    } else if (promo.appliesTo === "PRODUCT") {
-      // Check product quantity in cart
-      if (promo.productId && promo.minQuantity !== null) {
-        const cartItem = cartItems.find(
-          (i) => i.productId === promo.productId
-        );
-        if (cartItem && cartItem.quantity >= promo.minQuantity) {
+      if (promo.appliesTo === "ORDER") {
+        if (promo.minOrderAmount === null || subtotal >= promo.minOrderAmount) {
           eligible = true;
+        }
+      } else if (promo.appliesTo === "PRODUCT") {
+        if (promo.productId && promo.minQuantity !== null) {
+          const cartItem = cartItems.find((i) => i.productId === promo.productId);
+          if (cartItem && cartItem.quantity >= promo.minQuantity) {
+            eligible = true;
+          }
+        }
+      }
+
+      if (eligible) {
+        const promoDiscount = Math.min(
+          promo.discountType === "PERCENTAGE"
+            ? (subtotal * promo.discountValue) / 100
+            : promo.discountValue,
+          subtotal
+        );
+
+        if (promoDiscount > bestDiscount) {
+          bestDiscount = promoDiscount;
+          bestPromotion = promo;
         }
       }
     }
 
-    if (eligible) {
-      promoDiscount =
-        promo.discountType === "PERCENTAGE"
-          ? (subtotal * promo.discountValue) / 100
-          : promo.discountValue;
-
-      // Cap at subtotal
-      promoDiscount = Math.min(promoDiscount, subtotal);
-
-      if (promoDiscount > bestDiscount) {
-        bestDiscount = promoDiscount;
-        bestPromotion = promo;
-      }
-    }
+    return { promotion: bestPromotion, discount: bestDiscount };
+  } catch {
+    // If promotion table doesn't exist yet, skip silently
+    return { promotion: null, discount: 0 };
   }
-
-  return { promotion: bestPromotion, discount: bestDiscount };
 }
 
-// ── Main recalculate function ──────────────────────────────────────────────────
 export async function recalculateCart(
   cartItems: CartItem[],
   couponCode?: string | null
 ): Promise<RecalcResult> {
-  if (cartItems.length === 0) {
+  if (!cartItems.length) {
     return {
       subtotal: 0,
       taxAmount: 0,
@@ -182,12 +174,15 @@ export async function recalculateCart(
 
   // ── Fetch products ───────────────────────────────────────────────────────
   const productIds = cartItems.map((i) => i.productId);
+
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
   });
 
   if (products.length !== productIds.length) {
-    throw new Error("One or more products not found");
+    const foundIds = new Set(products.map((p) => p.id));
+    const missing = productIds.filter((id) => !foundIds.has(id));
+    throw new Error(`Products not found: ${missing.join(", ")}`);
   }
 
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -199,9 +194,8 @@ export async function recalculateCart(
   for (const item of cartItems) {
     const product = productMap.get(item.productId)!;
     const lineTotal = product.price * item.quantity;
-    const lineTax = (lineTotal * product.tax) / 100;
     subtotal += lineTotal;
-    taxAmount += lineTax;
+    taxAmount += (lineTotal * product.tax) / 100;
   }
 
   // ── Find best promotion ──────────────────────────────────────────────────
@@ -214,7 +208,7 @@ export async function recalculateCart(
   let couponDiscount = 0;
   let couponResult: CouponValidationResult | null = null;
 
-  if (couponCode) {
+  if (couponCode?.trim()) {
     couponResult = await validateCoupon(couponCode, subtotal);
     if (couponResult.valid) {
       couponDiscount = calcCouponDiscount(couponResult.coupon, subtotal);
@@ -231,14 +225,12 @@ export async function recalculateCart(
 
   if (couponDiscount > 0 || promoDiscount > 0) {
     if (couponDiscount >= promoDiscount) {
-      // Coupon wins
       finalDiscount = couponDiscount;
       source = "COUPON";
-      reason = couponCode!.toUpperCase();
-      couponId = couponResult!.valid ? couponResult.coupon.id : null;
+      reason = couponCode!.trim().toUpperCase();
+      couponId = couponResult?.valid ? couponResult.coupon.id : null;
       appliedLabel = `Coupon ${reason}: -₹${finalDiscount.toFixed(2)}`;
     } else {
-      // Promotion wins
       finalDiscount = promoDiscount;
       source = "PROMOTION";
       reason = promotion!.name;

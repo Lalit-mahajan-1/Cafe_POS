@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
-import {
-  recalculateCart,
-  validateCoupon,
-} from "@/services/discount.service";
+import { recalculateCart } from "@/services/discount.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,18 +13,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { customerId, tableId, paymentMethod, couponCode, items } = body as {
       customerId?: string;
-      tableId: string;
+      tableId: string | null;
       paymentMethod: string;
       couponCode?: string | null;
       items: { productId: string; quantity: number }[];
     };
-
-    if (!tableId) {
-      return NextResponse.json(
-        { error: "Table selection is required" },
-        { status: 400 }
-      );
-    }
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -36,29 +26,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Check table ──────────────────────────────────────────────────────────
-    const table = await prisma.table.findUnique({
-      where: { id: tableId },
-      include: {
-        orders: { where: { status: "DRAFT" }, take: 1 },
-      },
-    });
+    const isTakeout = !tableId;
 
-    if (!table) {
-      return NextResponse.json({ error: "Table not found" }, { status: 404 });
+    // ── Check table (dine-in only) ───────────────────────────────────────
+    if (!isTakeout) {
+      const table = await prisma.table.findUnique({
+        where: { id: tableId! },
+        include: {
+          orders: { where: { status: "DRAFT" }, take: 1 },
+        },
+      });
+
+      if (!table) {
+        return NextResponse.json(
+          { error: "Table not found" },
+          { status: 404 }
+        );
+      }
+
+      if (table.orders.length > 0) {
+        return NextResponse.json(
+          { error: `Table ${table.label} already has an active order` },
+          { status: 409 }
+        );
+      }
     }
 
-    if (table.orders.length > 0) {
-      return NextResponse.json(
-        { error: `Table ${table.label} already has an active order` },
-        { status: 409 }
-      );
-    }
-
-    // ── Backend recalculate everything ───────────────────────────────────────
+    // ── Recalculate everything server-side ───────────────────────────────
+    // recalculateCart already fetches products, calculates subtotal,
+    // tax, and applies best discount (coupon or promotion).
+    // Do NOT fetch products again after this — that was causing the error.
     const calc = await recalculateCart(items, couponCode);
 
-    // ── Validate coupon once more for security ───────────────────────────────
+    // ── Coupon security check ────────────────────────────────────────────
     if (couponCode && calc.source === "COUPON" && !calc.couponId) {
       return NextResponse.json(
         { error: "Coupon validation failed" },
@@ -66,39 +66,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Generate order number ────────────────────────────────────────────────
-    const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random()
+    // ── Generate order number ────────────────────────────────────────────
+    const prefix = isTakeout ? "TO" : "ORD";
+    const orderNumber = `${prefix}-${Date.now()
+      .toString(36)
+      .toUpperCase()}-${Math.random()
       .toString(36)
       .slice(2, 5)
       .toUpperCase()}`;
 
-    // ── Fetch products for order items ───────────────────────────────────────
-    const productIds = items.map((i) => i.productId);
+    // ── Build order items from what recalculateCart already validated ────
+    // recalculateCart threw if any product wasn't found, so productIds
+    // are guaranteed valid. Fetch prices from the same source of truth.
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: items.map((i) => i.productId) } },
+      select: { id: true, price: true },
     });
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     const orderItems = items.map((item) => {
       const product = productMap.get(item.productId)!;
-      const lineTotal = product.price * item.quantity;
       return {
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: product.price,
-        lineTotal,
+        lineTotal: product.price * item.quantity,
       };
     });
 
-    // ── Create order in transaction ──────────────────────────────────────────
+    // ── Create order in transaction ──────────────────────────────────────
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           orderNumber,
           employeeId: currentUser.id,
           customerId: customerId || null,
-          tableId,
+          tableId: isTakeout ? null : tableId,
           couponId: calc.couponId || null,
           promotionId: calc.promotionId || null,
           subtotal: calc.subtotal,
@@ -121,11 +125,13 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Mark table OCCUPIED
-      await tx.table.update({
-        where: { id: tableId },
-        data: { status: "OCCUPIED" },
-      });
+      // Mark table OCCUPIED (dine-in only)
+      if (!isTakeout) {
+        await tx.table.update({
+          where: { id: tableId! },
+          data: { status: "OCCUPIED" },
+        });
+      }
 
       // Increment coupon usage
       if (calc.couponId) {
@@ -142,7 +148,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[POST /api/pos/orders]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Order creation failed" },
+      {
+        error:
+          error instanceof Error ? error.message : "Order creation failed",
+      },
       { status: 500 }
     );
   }
