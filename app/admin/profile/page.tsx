@@ -11,7 +11,6 @@ export default async function AdminProfilePage() {
     redirect("/login");
   }
 
-  localStorage.setItem("user", JSON.stringify(user));
 
   if (user.role !== "ADMIN") {
     redirect("/profile");
