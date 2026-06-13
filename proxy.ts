@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyTokenEdge } from "@/lib/auth/jwt-edge";
 
 const ADMIN_ROUTES = ["/admin"];
-const EMPLOYEE_ROUTES = ["/dashboard", "/pos", "/kds"];
+const EMPLOYEE_ROUTES = ["/dashboard", "/pos", "/kds", "/profile", "/book-seat"];
 const AUTH_ROUTES = ["/login", "/register"];
 
 export async function proxy(req: NextRequest) {
@@ -41,6 +41,8 @@ export const config = {
     "/dashboard/:path*",
     "/pos/:path*",
     "/kds/:path*",
+    "/profile/:path*",
+    "/book-seat/:path*",
     "/login",
     "/register",
   ],
