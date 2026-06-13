@@ -32,6 +32,17 @@ enum TableStatus {
   RESERVED
 }
 
+enum DiscountKind {
+  COUPON
+  PRODUCT
+  ORDER
+}
+
+enum DiscountValueType {
+  PERCENTAGE
+  FIXED
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -76,7 +87,25 @@ model Product {
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  discounts   Discount[]
   createdAt   DateTime    @default(now())
+}
+
+model Discount {
+  id             String            @id @default(cuid())
+  name           String?
+  code           String?           @unique
+  kind           DiscountKind      @default(COUPON)
+  valueType      DiscountValueType @default(PERCENTAGE)
+  value          Float
+  productId      String?
+  product        Product?          @relation(fields: [productId], references: [id])
+  minQuantity    Int?
+  minOrderAmount Float?
+  isActive       Boolean           @default(true)
+  description    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 }
 
 model Order {

@@ -35,6 +35,7 @@ export async function PATCH(
         data: { status },
         include: {
           customer: true,
+          employee: { select: { name: true, email: true } },
           table: { select: { id: true, label: true } },
           items: { include: { product: true } },
         },

@@ -12,13 +12,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerId, tableId, paymentMethod, discount, items } = body as {
+    const { customerId, tableId, paymentMethod, discount, couponCode, items } =
+      body as {
       customerId?: string;
       tableId: string;
       paymentMethod: string;
       discount: number;
+      couponCode?: string | null;
       items: { productId: string; quantity: number }[];
     };
+    const normalizedCouponCode = couponCode?.trim().toUpperCase() || null;
 
     // ── Validate ───────────────────────────────────────────────────────────
     if (!tableId) {
@@ -95,7 +98,40 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const discountAmount = Math.max(0, discount || 0);
+    let couponDiscount = 0;
+
+    if (normalizedCouponCode) {
+      const coupon = await prisma.discount.findUnique({
+        where: { code: normalizedCouponCode },
+      });
+
+      if (!coupon || !coupon.isActive || coupon.kind !== "COUPON") {
+        return NextResponse.json(
+          { error: "Coupon code is invalid or inactive" },
+          { status: 400 }
+        );
+      }
+
+      if (
+        coupon.minOrderAmount != null &&
+        subtotal < coupon.minOrderAmount
+      ) {
+        return NextResponse.json(
+          {
+            error: `Coupon requires a minimum order of ₹${coupon.minOrderAmount}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      couponDiscount =
+        coupon.valueType === "PERCENTAGE"
+          ? subtotal * (coupon.value / 100)
+          : coupon.value;
+    }
+
+    const manualDiscount = Math.max(0, discount || 0);
+    const discountAmount = Math.min(subtotal, manualDiscount + couponDiscount);
     const total = Math.max(0, subtotal + taxAmount - discountAmount);
 
     // ── Generate order number ──────────────────────────────────────────────

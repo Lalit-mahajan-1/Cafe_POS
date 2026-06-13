@@ -1,0 +1,61 @@
+enum DiscountKind {
+  COUPON
+  PRODUCT
+  ORDER
+}
+
+enum DiscountValueType {
+  PERCENTAGE
+  FIXED
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  price       Float
+  unit        String      @default("piece")
+  tax         Float       @default(0)
+  description String?
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  discounts   Discount[]
+  createdAt   DateTime    @default(now())
+}
+
+model Discount {
+  id              String             @id @default(cuid())
+  name            String?
+  code            String?            @unique
+  kind            DiscountKind       @default(COUPON)
+  valueType       DiscountValueType  @default(PERCENTAGE)
+  value           Float
+  productId       String?
+  product         Product?           @relation(fields: [productId], references: [id])
+  minQuantity     Int?
+  minOrderAmount  Float?
+  isActive        Boolean            @default(true)
+  description     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  employeeId    String
+  employee      User        @relation(fields: [employeeId], references: [id])
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  tableId       String?
+  table         Table?      @relation(fields: [tableId], references: [id])
+  items         OrderItem[]
+  subtotal      Float
+  taxAmount     Float       @default(0)
+  discount      Float       @default(0)
+  total         Float
+  status        OrderStatus @default(DRAFT)
+  paymentMethod String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}

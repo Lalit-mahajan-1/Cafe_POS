@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -17,6 +16,8 @@ import {
   X,
   AlertCircle,
   RefreshCw,
+  Sparkles,
+  TicketPercent,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -68,7 +69,14 @@ type FloorTable = {
   shape: string;
   status: TableStatus;
   activeOrder: ActiveOrder | null;
-  todayBookings: { id: string; guestName: string | null; guestCount: number; startTime: string }[];
+  todayBookings: {
+    id: string;
+    guestName: string | null;
+    guestCount: number;
+    startTime: string;
+    endTime: string | null;
+    customer: { id: string; name: string } | null;
+  }[];
 };
 type FloorPlan = {
   id: string;
@@ -86,6 +94,7 @@ type FloorPlan = {
 type CreatedOrder = {
   id: string;
   orderNumber: string;
+  status: "DRAFT" | "PAID" | "CANCELLED" | "COMPLETED";
   subtotal: number;
   taxAmount: number;
   discount: number;
@@ -151,8 +160,6 @@ const formatMoney = (amount: number) =>
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function POSClient({ user }: { user: UserSummary }) {
-  const router = useRouter();
-
   // ── Floor State ────────────────────────────────────────────────────────────
   const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
   const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
@@ -173,6 +180,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi">("cash");
   const [discount, setDiscount] = useState("0");
+  const [couponCode, setCouponCode] = useState("");
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -188,6 +196,13 @@ export default function POSClient({ user }: { user: UserSummary }) {
       const json = await res.json();
       if (!json.success) throw new Error(json.message || "Failed to load floor");
       setFloorPlan(json.data);
+      setSelectedTable((current) => {
+        if (!current || !json.data) return current;
+        return (
+          json.data.tables.find((table: FloorTable) => table.id === current.id) ??
+          current
+        );
+      });
     } catch (err) {
       setFloorError(err instanceof Error ? err.message : "Could not load floor plan");
     } finally {
@@ -196,7 +211,11 @@ export default function POSClient({ user }: { user: UserSummary }) {
   }, []);
 
   useEffect(() => {
-    loadFloorPlan();
+    const timeoutId = window.setTimeout(() => {
+      void loadFloorPlan();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadFloorPlan]);
 
   // ── Load Products ──────────────────────────────────────────────────────────
@@ -213,7 +232,11 @@ export default function POSClient({ user }: { user: UserSummary }) {
   }, []);
 
   useEffect(() => {
-    loadProducts();
+    const timeoutId = window.setTimeout(() => {
+      void loadProducts();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadProducts]);
 
   // ── Filtered Products ──────────────────────────────────────────────────────
@@ -402,8 +425,8 @@ export default function POSClient({ user }: { user: UserSummary }) {
       setShowFloorModal(true);
       return;
     }
-    if (selectedTable.status === "OCCUPIED") {
-      setMessage(`Table ${selectedTable.label} already has an active order.`);
+    if (selectedTable.status !== "AVAILABLE") {
+      setMessage(`Table ${selectedTable.label} is not available.`);
       return;
     }
     if (!cart.length) {
@@ -422,6 +445,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
           tableId: selectedTable.id,
           paymentMethod,
           discount: totals.discountAmount,
+          couponCode: couponCode.trim() || null,
           items: cart.map((i) => ({
             productId: i.product.id,
             quantity: i.quantity,
@@ -467,6 +491,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
     setCustomer(null);
     setCreatedOrder(null);
     setDiscount("0");
+    setCouponCode("");
     setSelectedTable(null);
     setShowFloorModal(true);
   };
@@ -715,13 +740,13 @@ export default function POSClient({ user }: { user: UserSummary }) {
                     </div>
                     <button
                       onClick={() => addToCart(product)}
-                      disabled={!selectedTable || selectedTable.status === "OCCUPIED"}
+                      disabled={!selectedTable || selectedTable.status !== "AVAILABLE"}
                       className="mt-3 w-full rounded-md bg-[#000505] px-3 py-2 text-sm font-semibold text-[#FDFBF7] hover:bg-[#705C53] transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {!selectedTable
                         ? "Select table first"
-                        : selectedTable.status === "OCCUPIED"
-                        ? "Table occupied"
+                        : selectedTable.status !== "AVAILABLE"
+                        ? "Table unavailable"
                         : "Add to Order"}
                     </button>
                   </article>
@@ -823,6 +848,36 @@ export default function POSClient({ user }: { user: UserSummary }) {
               />
             </label>
 
+            {/* Coupon */}
+            <div className="mt-4 rounded-lg border border-[#705C53]/40 bg-[#F3EFE8] p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[#000505]">
+                <TicketPercent className="size-4 text-[#C86446]" />
+                Coupon
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value)}
+                  placeholder="SAVE10"
+                  className="w-full rounded-md border border-[#E6DDD1] bg-[#FDFBF7] px-3 py-2 text-sm text-[#000505] outline-none"
+                />
+                {couponCode.trim() && (
+                  <button
+                    onClick={() => setCouponCode("")}
+                    className="rounded-md bg-[#705C53] px-3 py-2 text-sm font-semibold text-[#FDFBF7] transition hover:bg-[#C86446]"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {couponCode.trim() && (
+                <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-[#C86446]">
+                  <Sparkles className="size-3" />
+                  {couponCode.trim().toUpperCase()} will be applied at checkout
+                </div>
+              )}
+            </div>
+
             {/* Totals */}
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex justify-between text-[#F3EFE8]/70">
@@ -871,7 +926,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
               disabled={
                 loading ||
                 !selectedTable ||
-                selectedTable.status === "OCCUPIED" ||
+                selectedTable.status !== "AVAILABLE" ||
                 cart.length === 0
               }
               className="mt-5 w-full rounded-md bg-[#C86446] px-4 py-3 font-semibold text-white hover:bg-[#A84F38] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
