@@ -15,6 +15,9 @@ import {
   Loader2,
   TicketPercent,
   ShieldAlert,
+  Coffee,
+  Menu,
+  X,
 } from "lucide-react";
 
 const fraunces = Fraunces({
@@ -48,9 +51,14 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    role: string;
+    email: string;
+  } | null>(null);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [statusText, setStatusText] = useState("Checking access...");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,7 +90,7 @@ export default function AdminLayout({
         }
 
         const data = (await response.json()) as {
-          user?: { name: string; role: string };
+          user?: { name: string; role: string; email: string };
         };
 
         if (!data.user || data.user.role !== "ADMIN") {
@@ -113,9 +121,14 @@ export default function AdminLayout({
     };
   }, [pathname, router]);
 
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
+    router.push("/login");
     router.refresh();
   };
 
@@ -138,67 +151,111 @@ export default function AdminLayout({
 
   return (
     <div
-      className={`${dmSans.variable} ${fraunces.variable} min-h-screen bg-[#F3EFE8] font-sans flex`}
+      className={`${dmSans.variable} ${fraunces.variable} min-h-screen bg-[#F3EFE8] font-sans`}
     >
-      <aside className="w-60 bg-[#FDFBF7] border-r border-[#E8E0D8] flex flex-col shrink-0">
-        <div className="flex items-center gap-2 px-6 h-16 border-b border-[#E8E0D8]">
-          <div className="w-[18px] h-[18px] rounded-full bg-[#C86446]" />
-          <span
-            className={`${fraunces.className} text-sm font-bold text-[#705C53] tracking-tight`}
+      {/* ── Mobile Header ── */}
+      <header className="sticky top-0 z-50 flex items-center justify-between bg-[#000505] px-4 py-3 text-white lg:hidden">
+        <div className="flex items-center gap-2">
+          <Coffee className="size-5" />
+          <span className="font-semibold">Odoo Cafe POS</span>
+        </div>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="rounded-md p-2 hover:bg-white/10"
+        >
+          <Menu className="size-6" />
+        </button>
+      </header>
+
+      {/* ── Mobile Overlay ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar ── */}
+      <aside
+        className={`
+          fixed left-0 top-0 z-[60] flex h-screen w-72 flex-col
+          bg-[#000505] px-4 py-5 text-[#FDFBF7]
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0
+        `}
+      >
+        {/* Mobile Close */}
+        <div className="mb-2 flex justify-end lg:hidden">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-md p-2 hover:bg-white/10"
           >
-            Cafe POS
-          </span>
+            <X className="size-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Logo */}
+        <Link
+          href="/admin"
+          onClick={() => setSidebarOpen(false)}
+          className="flex items-center gap-3 rounded-lg px-2 py-2"
+        >
+          <span className="grid size-11 place-items-center rounded-lg bg-[#C86446]">
+            <Coffee className="size-6" />
+          </span>
+          <span>
+            <span className="block text-lg font-semibold leading-tight">
+              Odoo Cafe POS
+            </span>
+            <span className="text-sm text-[#F3EFE8]/70">Admin panel</span>
+          </span>
+        </Link>
+
+        {/* Navigation */}
+        <nav className="mt-8 space-y-1" aria-label="Admin navigation">
           {navItems.map((item) => {
+            const Icon = item.icon;
             const isActive = pathname === item.href;
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
                   isActive
-                    ? "bg-[#EDE0D4] text-[#000505] font-medium"
-                    : "text-[#705C53] hover:bg-[#EDE0D4] hover:text-[#000505]"
+                    ? "bg-[#C86446] text-white"
+                    : "text-[#F3EFE8]/75 hover:bg-[#705C53]/35 hover:text-white"
                 }`}
               >
-                <item.icon className="w-4 h-4" />
+                <Icon className="size-5" />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="px-3 pb-4">
+        {/* User Section */}
+        <div className="mt-auto rounded-lg border border-[#705C53]/60 bg-[#705C53]/20 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-[#F3EFE8]/60">
+            Signed in
+          </p>
+          <p className="mt-2 truncate font-semibold">{user.name}</p>
+          <p className="truncate text-sm text-[#F3EFE8]/65">{user.email}</p>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-[#C4B8AC] hover:bg-[#FFF4F0] hover:text-[#A84C32] transition-all duration-200 cursor-pointer"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-[#FDFBF7] px-3 py-2 text-sm font-semibold text-[#000505] transition hover:bg-[#F3EFE8]"
           >
-            <LogOut className="w-4 h-4" />
-            Sign out
+            <LogOut className="size-4" />
+            Logout
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-[#E8E0D8] bg-[#FDFBF7] flex items-center justify-between px-6 shrink-0">
-          <div />
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#C86446] flex items-center justify-center text-white text-xs font-bold">
-              {user.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </div>
-            <div className="text-sm">
-              <p className="font-medium text-[#000505]">{user.name}</p>
-              <p className="text-xs text-[#C4B8AC]">{user.role}</p>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      {/* ── Main Content ── */}
+      <div className="lg:pl-72">
+        <main className="min-h-screen p-6">{children}</main>
       </div>
     </div>
   );
