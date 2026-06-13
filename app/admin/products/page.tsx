@@ -10,19 +10,16 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
 });
 
-const initialProducts = [
-  { name: "Cappuccino", category: "Coffee", price: "$4.50", stock: 48 },
-  { name: "Flat White", category: "Coffee", price: "$4.50", stock: 36 },
-  { name: "Espresso", category: "Coffee", price: "$3.00", stock: 72 },
-  { name: "Croissant", category: "Pastry", price: "$4.00", stock: 24 },
-  { name: "Blueberry Muffin", category: "Pastry", price: "$3.50", stock: 18 },
-  { name: "Panini", category: "Food", price: "$8.50", stock: 12 },
-  { name: "Latte", category: "Coffee", price: "$5.00", stock: 42 },
-  { name: "Chai Tea", category: "Tea", price: "$4.00", stock: 30 },
-];
+type Product = {
+  name: string;
+  category: string;
+  price: string;
+  stock: number;
+};
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
@@ -37,6 +34,24 @@ export default function ProductsPage() {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        const mapped: Product[] = (data.products || []).map(
+          (p: { name: string; price: number; category: { name: string } }) => ({
+            name: p.name,
+            category: p.category?.name || "",
+            price: `$${Number(p.price).toFixed(2)}`,
+            stock: 0,
+          })
+        );
+        setProducts(mapped);
+      })
+      .catch(() => setProducts([]))
+      .finally(() => setPageLoading(false));
+  }, []);
 
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -169,6 +184,11 @@ export default function ProductsPage() {
             "0 2px 4px rgba(112,92,83,0.04), 0 6px 20px rgba(112,92,83,0.06)",
         }}
       >
+        {pageLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 animate-spin text-[#C4B8AC]" />
+          </div>
+        ) : (
         <table className="w-full">
           <thead>
             <tr className="border-b border-[#E8E0D8]">
@@ -189,7 +209,7 @@ export default function ProductsPage() {
           <tbody>
             {filtered.map((product) => (
               <tr
-                key={product.name}
+                key={product.name + product.category}
                 className="border-b border-[#E8E0D8] last:border-0 hover:bg-[#F3EFE8]/50 transition-colors"
               >
                 <td className="px-5 py-3">
@@ -217,6 +237,7 @@ export default function ProductsPage() {
             ))}
           </tbody>
         </table>
+        )}
       </div>
 
       {showModal && (
