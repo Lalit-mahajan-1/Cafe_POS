@@ -243,7 +243,7 @@ export default function ProfileClient({ user: initialUser }: ProfileClientProps)
           )}
 
           <p className="mt-4 text-xs text-[#705C53]">
-            JPEG, PNG, or WebP up to 5 MB. Your photo appears across the app.
+            JPG, JPEG, PNG, or WebP. Your photo appears across the app.
           </p>
         </div>
 
