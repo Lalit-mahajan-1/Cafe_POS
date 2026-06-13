@@ -110,8 +110,7 @@ export default function EmployeeSidebar({
           bg-[#000505] px-4 py-5 text-[#FDFBF7]
           transform transition-transform duration-300 ease-in-out
 
-          ${
-            isOpen ? "translate-x-0" : "-translate-x-full"
+          ${isOpen ? "translate-x-0" : "-translate-x-full"
           }
 
           lg:translate-x-0
@@ -161,11 +160,10 @@ export default function EmployeeSidebar({
                 key={item.label}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
-                  isActive
+                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${isActive
                     ? "bg-[#C86446] text-white"
                     : "text-[#F3EFE8]/75 hover:bg-[#705C53]/35 hover:text-white"
-                }`}
+                  }`}
               >
                 <Icon className="size-5" />
                 {item.label}
