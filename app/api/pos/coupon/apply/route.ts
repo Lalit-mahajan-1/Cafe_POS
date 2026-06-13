@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/sessions";
+import { getCurrentUser } from "@/lib/auth/session";
 import { validateCoupon, calcCouponDiscount } from "@/services/discount.service";
 
 export async function POST(req: NextRequest) {

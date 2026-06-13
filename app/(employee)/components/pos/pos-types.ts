@@ -103,3 +103,13 @@ export type Totals = {
   discountAmount: number;
   total: number;
 };
+
+export type CouponState = {
+  status: "idle" | "loading" | "valid" | "invalid";
+  code: string;
+  couponId: string | null;
+  discountType: string | null;
+  discountValue: number | null;
+  discountAmount: number;
+  message: string;
+};
