@@ -1,3 +1,5 @@
+// app/api/users/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
@@ -9,14 +11,21 @@ export async function GET() {
     await requireRole(["ADMIN"]);
 
     const users = await prisma.user.findMany({
-      where: { archived: false },
-      select: { id: true, name: true, email: true, role: true, avatar: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatar: true,
+        archived: true, // ← needed for status display
+      },
       orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json({ users });
   } catch (err: any) {
-    const status = err.message === "UNAUTHORIZED" ? 401 : err.message === "FORBIDDEN" ? 403 : 500;
+    const status =
+      err.message === "UNAUTHORIZED" ? 401 : err.message === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
@@ -60,7 +69,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, user }, { status: 201 });
   } catch (err: any) {
-    const status = err.message === "UNAUTHORIZED" ? 401 : err.message === "FORBIDDEN" ? 403 : 500;
+    const status =
+      err.message === "UNAUTHORIZED" ? 401 : err.message === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }
