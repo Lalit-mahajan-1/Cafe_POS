@@ -10,7 +10,7 @@ export async function GET() {
           orderBy: [{ row: "asc" }, { col: "asc" }],
           include: {
             orders: {
-              where: { status: "DRAFT" },
+              where: { status: { in: ["DRAFT", "PAID"] } },
               select: {
                 id: true,
                 orderNumber: true,

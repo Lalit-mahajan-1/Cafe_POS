@@ -10,11 +10,13 @@ async function getKitchenData() {
     const orders = await prisma.order.findMany({
       where: {
         employeeId: user.id,
-        status: "PAID",
+        status: { in: ["PAID", "DRAFT"] },
       },
       orderBy: { createdAt: "asc" },
       include: {
         customer: true,
+        table: true,
+        coupon: true,
         items: {
           include: {
             product: { include: { category: true } },

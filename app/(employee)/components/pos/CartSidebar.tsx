@@ -36,6 +36,7 @@ type Props = {
   onCouponChange: (code: string) => void;
   onPaymentChange: (method: PaymentMethod) => void;
   onConfirmOrder: () => void;
+  isDraftCheckout?: boolean;
 };
 
 const initialCouponState: CouponState = {
@@ -61,10 +62,11 @@ export default function CartSidebar({
   onCouponChange,
   onPaymentChange,
   onConfirmOrder,
+  isDraftCheckout = false,
 }: Props) {
   const canConfirm =
     cart.length > 0 &&
-    (isTakeout || selectedTable?.status === "AVAILABLE");
+    (isTakeout || isDraftCheckout || selectedTable?.status === "AVAILABLE");
 
   const [coupon, setCoupon] = useState<CouponState>(initialCouponState);
   const appliedCodeRef = useRef("");

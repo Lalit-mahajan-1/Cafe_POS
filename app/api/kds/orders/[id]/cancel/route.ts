@@ -10,29 +10,70 @@ export async function PATCH(
     const user = await requireRole(["ADMIN", "EMPLOYEE"]);
     const { id } = await params;
 
-    const updatedRows = await prisma.$executeRaw`
-      UPDATE "Order"
-      SET "status" = 'CANCELLED'::"OrderStatus", "updatedAt" = NOW()
-      WHERE "id" = ${id}
-        AND "employeeId" = ${user.id}
-        AND "status" = 'PAID'::"OrderStatus"
-    `;
+    const result = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: {
+          id,
+          employeeId: user.id,
+          status: "PAID",
+        },
+      });
 
-    if (updatedRows === 0) {
+      if (!order) return null;
+
+      const updated = await tx.order.update({
+        where: { id },
+        data: { status: "CANCELLED" },
+      });
+
+      // ── Free table when order is cancelled ──────────────────────────
+      if (order.tableId) {
+        // Check no other DRAFT or PAID orders on same table
+        const otherActive = await tx.order.count({
+          where: {
+            tableId: order.tableId,
+            status: { in: ["DRAFT", "PAID"] },
+            id: { not: id },
+          },
+        });
+
+        if (otherActive === 0) {
+          const today = new Date();
+          const startOfDay = new Date(today);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(today);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          const activeBookings = await tx.booking.count({
+            where: {
+              tableId: order.tableId,
+              isActive: true,
+              date: { gte: startOfDay, lte: endOfDay },
+            },
+          });
+
+          await tx.table.update({
+            where: { id: order.tableId },
+            data: {
+              status: activeBookings > 0 ? "RESERVED" : "AVAILABLE",
+            },
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    if (!result) {
       return NextResponse.json(
         { error: "Order is not active for this employee" },
         { status: 404 },
       );
     }
 
-    const order = await prisma.order.findUnique({
-      where: { id },
-      select: { id: true, orderNumber: true, updatedAt: true },
-    });
-
     return NextResponse.json({
-      cancelledOrder: order
-        ? { ...order, updatedAt: order.updatedAt.toISOString() }
+      cancelledOrder: result
+        ? { id: result.id, orderNumber: result.orderNumber, updatedAt: result.updatedAt.toISOString() }
         : null,
     });
   } catch (err: unknown) {

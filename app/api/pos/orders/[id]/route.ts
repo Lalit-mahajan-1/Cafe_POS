@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
+import { recalculateCart } from "@/services/discount.service";
 
 export async function PATCH(
   req: NextRequest,
@@ -14,12 +15,16 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { status } = body as {
+    const { status, paymentMethod, couponCode, items } = body as {
       status: "DRAFT" | "PAID" | "CANCELLED" | "COMPLETED";
+      paymentMethod?: string;
+      couponCode?: string | null;
+      items?: { productId: string; quantity: number }[];
     };
 
     const order = await prisma.order.findUnique({
       where: { id },
+      include: { items: true },
     });
 
     if (!order) {
@@ -30,27 +35,96 @@ export async function PATCH(
     }
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
+      let updateData: any = { status };
+
+      if (paymentMethod) {
+        updateData.paymentMethod = paymentMethod;
+      }
+
+      if (items) {
+        // Calculate new totals using discount service
+        const calc = await recalculateCart(items, couponCode);
+
+        // Update coupon usage if coupon changed
+        if (order.couponId !== calc.couponId) {
+          if (order.couponId) {
+            await tx.coupon.update({
+              where: { id: order.couponId },
+              data: { currentUsage: { decrement: 1 } },
+            });
+          }
+          if (calc.couponId) {
+            await tx.coupon.update({
+              where: { id: calc.couponId },
+              data: { currentUsage: { increment: 1 } },
+            });
+          }
+        }
+
+        // Delete existing items
+        await tx.orderItem.deleteMany({
+          where: { orderId: id },
+        });
+
+        // Get prices for new items
+        const products = await tx.product.findMany({
+          where: { id: { in: items.map((i) => i.productId) } },
+          select: { id: true, price: true },
+        });
+        const productMap = new Map(products.map((p) => [p.id, p]));
+
+        const newOrderItems = items.map((item) => {
+          const product = productMap.get(item.productId)!;
+          return {
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: product.price,
+            lineTotal: product.price * item.quantity,
+          };
+        });
+
+        updateData = {
+          ...updateData,
+          couponId: calc.couponId || null,
+          promotionId: calc.promotionId || null,
+          subtotal: calc.subtotal,
+          taxAmount: calc.taxAmount,
+          discount: calc.discount,
+          discountSource: calc.source,
+          discountReason: calc.reason,
+          total: calc.total,
+          items: { create: newOrderItems },
+        };
+      }
+
       const updated = await tx.order.update({
         where: { id },
-        data: { status },
+        data: updateData,
         include: {
           customer: true,
           employee: { select: { name: true, email: true } },
           table: { select: { id: true, label: true } },
-          items: { include: { product: true } },
+          coupon: true,
+          items: {
+            include: {
+              product: {
+                include: { category: true },
+              },
+            },
+          },
         },
       });
 
       // ── Free table when order is closed ────────────────────────────────
       if (
         order.tableId &&
-        ["PAID", "CANCELLED", "COMPLETED"].includes(status)
+        ["CANCELLED", "COMPLETED"].includes(status)
       ) {
-        // Check no other DRAFT orders on same table
+        // Check no other DRAFT or PAID orders on same table
         const otherActive = await tx.order.count({
           where: {
             tableId: order.tableId,
-            status: "DRAFT",
+            status: { in: ["DRAFT", "PAID"] },
             id: { not: id },
           },
         });
@@ -110,7 +184,14 @@ export async function GET(
         customer: true,
         employee: { select: { name: true, email: true } },
         table: { select: { id: true, label: true } },
-        items: { include: { product: true } },
+        coupon: true,
+        items: {
+          include: {
+            product: {
+              include: { category: true },
+            },
+          },
+        },
       },
     });
 

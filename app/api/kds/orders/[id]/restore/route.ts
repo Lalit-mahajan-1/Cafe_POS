@@ -10,17 +10,28 @@ export async function PATCH(
     const user = await requireRole(["ADMIN", "EMPLOYEE"]);
     const { id } = await params;
 
-    const order = await prisma.order.update({
-      where: { id, employeeId: user.id, status: "CANCELLED" },
-      data: { status: "PAID" },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: { include: { category: true } },
+    const order = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id, employeeId: user.id, status: "CANCELLED" },
+        data: { status: "PAID" },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: { include: { category: true } },
+            },
           },
         },
-      },
+      });
+
+      if (updatedOrder.tableId) {
+        await tx.table.update({
+          where: { id: updatedOrder.tableId },
+          data: { status: "OCCUPIED" },
+        });
+      }
+
+      return updatedOrder;
     });
 
     return NextResponse.json({

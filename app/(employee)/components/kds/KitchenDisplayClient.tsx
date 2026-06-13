@@ -2,20 +2,37 @@
 
 import { useMemo, useState } from "react";
 import { Check, ChefHat, Clock3, Minus, ReceiptText, RotateCcw, X, XCircle } from "lucide-react";
+import CartSidebar from "../pos/CartSidebar";
+import type { CartItem, Totals } from "../pos/pos-types";
+import type { PaymentMethod } from "../pos/pos-constants";
 
 type KitchenOrder = {
   id: string;
   orderNumber: string;
+  subtotal: number;
+  taxAmount: number;
+  discount: number;
   total: number;
+  status: "DRAFT" | "PAID" | "CANCELLED" | "COMPLETED";
+  paymentMethod: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
-  customer: { name: string; phone: string | null } | null;
+  customer: { id: string; name: string; phone: string | null; email: string | null } | null;
+  table: { id: string; label: string; seats: number } | null;
+  coupon: { id: string; code: string; discountValue: number; discountType: string } | null;
   items: {
     id: string;
     quantity: number;
+    unitPrice: number;
+    lineTotal: number;
     product: {
+      id: string;
       name: string;
-      category: { name: string };
+      price: number;
+      unit: string;
+      tax: number;
+      description: string | null;
+      category: { id: string; name: string; color: string };
     };
   }[];
 };
@@ -58,6 +75,106 @@ export default function KitchenDisplayClient({
   const [cancelledId, setCancelledId] = useState<string | null>(null);
   const [showCancelledDialog, setShowCancelledDialog] = useState(false);
   const [message, setMessage] = useState("");
+
+  // ── Pay Dialog State ──────────────────────────────────────────────────────
+  const [payOrder, setPayOrder] = useState<KitchenOrder | null>(null);
+  const [payCart, setPayCart] = useState<CartItem[]>([]);
+  const [payCouponCode, setPayCouponCode] = useState("");
+  const [payPaymentMethod, setPayPaymentMethod] = useState<PaymentMethod>("cash");
+  const [payLoading, setPayLoading] = useState(false);
+
+  const payTotals = useMemo<Totals>(() => {
+    const subtotal = payCart.reduce(
+      (s, i) => s + i.product.price * i.quantity,
+      0
+    );
+    const taxAmount = payCart.reduce(
+      (s, i) => s + (i.product.price * i.quantity * i.product.tax) / 100,
+      0
+    );
+    const total = Math.max(0, subtotal + taxAmount);
+    return { subtotal, taxAmount, discountAmount: 0, total };
+  }, [payCart]);
+
+  const handleOpenPayModal = (order: KitchenOrder) => {
+    setPayOrder(order);
+    
+    // Map order items to CartItem format
+    const initialCart: CartItem[] = order.items.map((item) => ({
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        price: item.product.price || item.unitPrice,
+        unit: item.product.unit || "piece",
+        tax: item.product.tax || 0,
+        description: item.product.description || null,
+        category: {
+          id: item.product.category?.id || "",
+          name: item.product.category?.name || "",
+          color: item.product.category?.color || "#3b82f6",
+        },
+      },
+      quantity: item.quantity,
+    }));
+    
+    setPayCart(initialCart);
+    setPayCouponCode(order.coupon?.code || "");
+    setPayPaymentMethod((order.paymentMethod as PaymentMethod) || "cash");
+    setPayLoading(false);
+  };
+
+  const handleUpdatePayCartQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      setPayCart((items) => items.filter((i) => i.product.id !== productId));
+      return;
+    }
+    setPayCart((items) =>
+      items.map((i) =>
+        i.product.id === productId ? { ...i, quantity } : i
+      )
+    );
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!payOrder) return;
+    setPayLoading(true);
+    setMessage("");
+
+    try {
+      const payload = {
+        status: "PAID",
+        paymentMethod: payPaymentMethod,
+        couponCode: payCouponCode.trim() || null,
+        items: payCart.map((i) => ({
+          productId: i.product.id,
+          quantity: i.quantity,
+        })),
+      };
+
+      const res = await fetch(`/api/pos/orders/${payOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to confirm payment");
+
+      // Update local KDS orders state
+      setOrders((current) =>
+        current.map((o) =>
+          o.id === payOrder.id
+            ? { ...o, ...data.order, items: data.order.items }
+            : o
+        )
+      );
+      setPayOrder(null);
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : "Payment confirmation failed");
+    } finally {
+      setPayLoading(false);
+    }
+  };
 
   const itemCount = useMemo(
     () => orders.reduce((sum, order) => sum + order.items.reduce((count, item) => count + item.quantity, 0), 0),
@@ -171,7 +288,7 @@ export default function KitchenDisplayClient({
                 Active orders for {employeeName}
               </h1>
               <p className="mt-2 max-w-2xl text-[#F3EFE8]/70">
-                Only paid orders created by this employee appear here. Marking done updates the database status.
+                Active draft and paid orders created by this employee appear here. Convert draft orders to paid or complete preparation.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
@@ -250,9 +367,15 @@ export default function KitchenDisplayClient({
                       {formatTime(order.createdAt)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[#F3EFE8] px-3 py-1 text-xs font-semibold text-[#705C53]">
-                    Paid
-                  </span>
+                  {order.status === "DRAFT" ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-500/20">
+                      Draft
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-[#F3EFE8] px-3 py-1 text-xs font-semibold text-[#705C53]">
+                      Paid
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-5 space-y-3">
@@ -267,14 +390,16 @@ export default function KitchenDisplayClient({
                           <p className="text-xs text-[#705C53]">{item.product.category.name}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => decrementItem(item.id)}
-                            disabled={decrementingItemId === item.id || isCompleting || isCancelling}
-                            className="grid size-8 place-items-center rounded-md border border-[#E6DDD1] text-[#C86446] transition hover:bg-[#F3EFE8] disabled:opacity-50"
-                            aria-label={`Reduce ${item.product.name}`}
-                          >
-                            <Minus className="size-4" aria-hidden="true" />
-                          </button>
+                          {order.status === "DRAFT" && (
+                            <button
+                              onClick={() => decrementItem(item.id)}
+                              disabled={decrementingItemId === item.id || isCompleting || isCancelling}
+                              className="grid size-8 place-items-center rounded-md border border-[#E6DDD1] text-[#C86446] transition hover:bg-[#F3EFE8] disabled:opacity-50 cursor-pointer"
+                              aria-label={`Reduce ${item.product.name}`}
+                            >
+                              <Minus className="size-4" aria-hidden="true" />
+                            </button>
+                          )}
                           <span className="rounded-md bg-[#F3EFE8] px-2 py-1 text-sm font-semibold text-[#000505]">
                             x{item.quantity}
                           </span>
@@ -292,22 +417,34 @@ export default function KitchenDisplayClient({
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <strong>{formatMoney(order.total)}</strong>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => cancelOrder(order.id)}
-                      disabled={isCancelling || isCompleting || isCompleted || isCancelled}
-                      className="inline-flex items-center gap-2 rounded-md border border-[#C86446] px-4 py-2 text-sm font-semibold text-[#C86446] transition hover:bg-[#C86446] hover:text-white disabled:opacity-60"
-                    >
-                      <XCircle className="size-4" aria-hidden="true" />
-                      {isCancelling ? "Cancelling..." : "Cancel"}
-                    </button>
-                    <button
-                      onClick={() => completeOrder(order.id)}
-                      disabled={isCompleting || isCancelling || isCompleted || isCancelled}
-                      className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60"
-                    >
-                      <Check className="size-4" aria-hidden="true" />
-                      {isCompleting ? "Updating..." : "Done"}
-                    </button>
+                    {order.status === "DRAFT" ? (
+                      <button
+                        onClick={() => handleOpenPayModal(order)}
+                        className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] shadow-sm hover:shadow-md cursor-pointer"
+                      >
+                        <ReceiptText className="size-4" aria-hidden="true" />
+                        Pay
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => cancelOrder(order.id)}
+                          disabled={isCancelling || isCompleting || isCompleted || isCancelled}
+                          className="inline-flex items-center gap-2 rounded-md border border-[#C86446] px-4 py-2 text-sm font-semibold text-[#C86446] transition hover:bg-[#C86446] hover:text-white disabled:opacity-60 cursor-pointer"
+                        >
+                          <XCircle className="size-4" aria-hidden="true" />
+                          {isCancelling ? "Cancelling..." : "Cancel"}
+                        </button>
+                        <button
+                          onClick={() => completeOrder(order.id)}
+                          disabled={isCompleting || isCancelling || isCompleted || isCancelled}
+                          className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60 cursor-pointer"
+                        >
+                          <Check className="size-4" aria-hidden="true" />
+                          {isCompleting ? "Updating..." : "Done"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>
@@ -325,6 +462,53 @@ export default function KitchenDisplayClient({
               </p>
             </div>
           </section>
+        )}
+
+        {payOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-all duration-300">
+            <div className="relative w-full max-w-md rounded-xl bg-[#000505] p-1 shadow-2xl border border-[#705C53] max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="flex justify-between items-center px-5 py-4 border-b border-[#705C53]/40">
+                <h3 className="text-lg font-semibold text-[#FDFBF7]">Pay Order {payOrder.orderNumber}</h3>
+                <button
+                  onClick={() => setPayOrder(null)}
+                  className="rounded-md p-1.5 text-[#F3EFE8]/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                <CartSidebar
+                  cart={payCart}
+                  selectedTable={
+                    payOrder.table
+                      ? {
+                          id: payOrder.table.id,
+                          label: payOrder.table.label,
+                          seats: payOrder.table.seats,
+                          shape: "round",
+                          status: "OCCUPIED",
+                          row: 0,
+                          col: 0,
+                          activeOrder: null,
+                          todayBookings: [],
+                        }
+                      : null
+                  }
+                  isTakeout={!payOrder.table}
+                  customer={payOrder.customer}
+                  couponCode={payCouponCode}
+                  paymentMethod={payPaymentMethod}
+                  totals={payTotals}
+                  loading={payLoading}
+                  onUpdateQuantity={handleUpdatePayCartQuantity}
+                  onCouponChange={setPayCouponCode}
+                  onPaymentChange={setPayPaymentMethod}
+                  onConfirmOrder={handleConfirmPayment}
+                  isDraftCheckout={true}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {showCancelledDialog && (

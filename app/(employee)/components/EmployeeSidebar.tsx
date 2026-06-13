@@ -13,6 +13,7 @@ import {
   Users,
   Menu,
   X,
+  History,
 } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import { PROFILE_UPDATED_EVENT } from "@/lib/profile-events";
@@ -28,6 +29,7 @@ const navItems = [
   { label: "POS Terminal", href: "/pos", icon: ReceiptText },
   { label: "Kitchen Display", href: "/kds", icon: ChefHat },
   { label: "Table Seats", href: "/book-seat", icon: Users },
+  { label: "Orders History", href: "/orders", icon: History },
   { label: "Profile", href: "/profile", icon: UserCircle },
 ];
 
