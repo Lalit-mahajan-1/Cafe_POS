@@ -26,11 +26,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-<<<<<<< HEAD
-  const oauthError = useMemo(() => {
-=======
   useEffect(() => {
-    if (err === "oauth_failed") return "Google login failed. Try again.";
+    const err = searchParams.get("error");
+    if (err === "google_denied") setError("Google login was cancelled.");
+    if (err === "oauth_failed") setError("Google login failed. Try again.");
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,11 +48,11 @@ function LoginForm() {
         throw new Error(
           typeof data.error === "string" ? data.error : "Login failed"
         );
-      const dest = data.user.role === "ADMIN" ? "/admin" : "/dashboard";
+      const dest = data.user.role === "ADMIN" ? "/admin" : "/pos";
       router.push(dest);
       router.refresh();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -170,19 +169,7 @@ function LoginForm() {
           href="/register"
           className="inline-block text-sm text-[#705C53] font-medium border-b border-[#705C53]/30 hover:text-[#C86446] hover:border-[#C86446]/30 transition-all duration-200 pb-0.5"
         >
-<<<<<<< HEAD
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
-
-      {(error || oauthError) && <p className="mt-4 text-red-600">{error || oauthError}</p>}
-      <p className="mt-4 text-sm">
-        No account?{" "}
-        <Link href="/register" className="text-blue-600">
-          Register
-=======
           Create an account
->>>>>>> 49f8369e853180e887dd86f1b66798958469263c
         </Link>
       </div>
     </div>
