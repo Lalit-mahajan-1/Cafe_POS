@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -11,11 +11,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Show OAuth errors coming back in URL
-  useEffect(() => {
+  const oauthError = useMemo(() => {
     const err = searchParams.get("error");
-    if (err === "google_denied") setError("Google login was cancelled.");
-    if (err === "oauth_failed") setError("Google login failed. Try again.");
+    if (err === "google_denied") return "Google login was cancelled.";
+    if (err === "oauth_failed") return "Google login failed. Try again.";
+    return "";
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,11 +34,11 @@ export default function LoginPage() {
         throw new Error(
           typeof data.error === "string" ? data.error : "Login failed",
         );
-      const dest = data.user.role === "ADMIN" ? "/admin" : "/pos";
+      const dest = data.user.role === "ADMIN" ? "/admin" : "/dashboard";
       router.push(dest);
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {error && <p className="mt-4 text-red-600">{error}</p>}
+      {(error || oauthError) && <p className="mt-4 text-red-600">{error || oauthError}</p>}
       <p className="mt-4 text-sm">
         No account?{" "}
         <Link href="/register" className="text-blue-600">
