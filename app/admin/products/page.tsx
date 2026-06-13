@@ -14,7 +14,7 @@ type Product = {
   name: string;
   category: string;
   price: string;
-  tax: number;
+  stock: number;
 };
 
 export default function ProductsPage() {
@@ -22,12 +22,10 @@ export default function ProductsPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
-  const [isNewCategory, setIsNewCategory] = useState(false);
   const [form, setForm] = useState({
     name: "",
     price: "",
     categoryId: "",
-    newCategoryName: "",
     description: "",
     unit: "piece",
     tax: "0",
@@ -42,11 +40,11 @@ export default function ProductsPage() {
       .then((res) => res.json())
       .then((data) => {
         const mapped: Product[] = (data.products || []).map(
-          (p: { name: string; price: number; tax: number; category: { name: string } }) => ({
+          (p: { name: string; price: number; category: { name: string } }) => ({
             name: p.name,
             category: p.category?.name || "",
-            price: `₹${Number(p.price).toFixed(2)}`,
-            tax: p.tax || 0,
+            price: `$${Number(p.price).toFixed(2)}`,
+            stock: 0,
           })
         );
         setProducts(mapped);
@@ -74,13 +72,7 @@ export default function ProductsPage() {
     if (!form.name.trim()) errs.name = "Name is required";
     if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
       errs.price = "Price must be a positive number";
-    
-    if (isNewCategory) {
-      if (!form.newCategoryName.trim()) errs.newCategoryName = "Category name is required";
-    } else {
-      if (!form.categoryId.trim()) errs.categoryId = "Category is required";
-    }
-
+    if (!form.categoryId.trim()) errs.categoryId = "Category is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -97,8 +89,7 @@ export default function ProductsPage() {
         body: JSON.stringify({
           name: form.name.trim(),
           price: Number(form.price),
-          categoryId: isNewCategory ? undefined : form.categoryId.trim(),
-          newCategoryName: isNewCategory ? form.newCategoryName.trim() : undefined,
+          categoryId: form.categoryId.trim(),
           description: form.description.trim() || undefined,
           unit: form.unit,
           tax: Number(form.tax),
@@ -124,9 +115,9 @@ export default function ProductsPage() {
         ...prev,
         {
           name: data.product.name,
-          category: data.product.category?.name || (isNewCategory ? form.newCategoryName : form.categoryId),
-          price: `₹${Number(data.product.price).toFixed(2)}`,
-          tax: Number(data.product.tax || 0),
+          category: data.product.category?.name || form.categoryId,
+          price: `$${Number(data.product.price).toFixed(2)}`,
+          stock: 0,
         },
       ]);
       setShowModal(false);
@@ -143,13 +134,11 @@ export default function ProductsPage() {
       name: "",
       price: "",
       categoryId: "",
-      newCategoryName: "",
       description: "",
       unit: "piece",
       tax: "0",
     });
     setErrors({});
-    setIsNewCategory(false);
   };
 
   return (
@@ -213,7 +202,7 @@ export default function ProductsPage() {
                 Price
               </th>
               <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
-                Tax
+                Stock
               </th>
             </tr>
           </thead>
@@ -241,7 +230,7 @@ export default function ProductsPage() {
                 </td>
                 <td className="px-5 py-3">
                   <span className="text-sm text-[#705C53]">
-                    {product.tax}%
+                    {product.stock}
                   </span>
                 </td>
               </tr>
@@ -353,57 +342,32 @@ export default function ProductsPage() {
                 <label className="block text-xs font-medium uppercase tracking-[0.08em] text-[#705C53] mb-1.5">
                   Category
                 </label>
-                {isNewCategory ? (
-                  <div>
-                    <input
-                      type="text"
-                      value={form.newCategoryName}
-                      onChange={(e) => setForm({ ...form, newCategoryName: e.target.value })}
-                      placeholder="New category name"
-                      className="w-full px-3.5 py-2.5 bg-[#FDFBF7] border border-[#E8E0D8] rounded-lg text-sm text-[#000505] focus:outline-none focus:border-[#C86446] focus:ring-2 focus:ring-[#C86446]/15 transition-all duration-200"
-                    />
-                    {errors.newCategoryName && (
-                      <p className="mt-1 text-xs text-[#A84C32]">{errors.newCategoryName}</p>
-                    )}
-                  </div>
-                ) : categoriesLoading ? (
+                {categoriesLoading ? (
                   <div className="flex items-center gap-2 px-3.5 py-2.5 bg-[#FDFBF7] border border-[#E8E0D8] rounded-lg text-sm text-[#C4B8AC]">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     Loading categories...
                   </div>
                 ) : (
-                  <div>
-                    <select
-                      value={form.categoryId}
-                      onChange={(e) =>
-                        setForm({ ...form, categoryId: e.target.value })
-                      }
-                      className="w-full px-3.5 py-2.5 bg-[#FDFBF7] border border-[#E8E0D8] rounded-lg text-sm text-[#000505] focus:outline-none focus:border-[#C86446] focus:ring-2 focus:ring-[#C86446]/15 transition-all duration-200 appearance-none"
-                    >
-                      <option value="">Select a category</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.categoryId && (
-                      <p className="mt-1 text-xs text-[#A84C32]">
-                        {errors.categoryId}
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                <div className="mt-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => setIsNewCategory(!isNewCategory)}
-                    className="text-xs text-[#C86446] hover:underline cursor-pointer"
+                  <select
+                    value={form.categoryId}
+                    onChange={(e) =>
+                      setForm({ ...form, categoryId: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2.5 bg-[#FDFBF7] border border-[#E8E0D8] rounded-lg text-sm text-[#000505] focus:outline-none focus:border-[#C86446] focus:ring-2 focus:ring-[#C86446]/15 transition-all duration-200 appearance-none"
                   >
-                    {isNewCategory ? "Choose existing category" : "Create new category"}
-                  </button>
-                </div>
+                    <option value="">Select a category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {errors.categoryId && (
+                  <p className="mt-1 text-xs text-[#A84C32]">
+                    {errors.categoryId}
+                  </p>
+                )}
               </div>
 
               <div>

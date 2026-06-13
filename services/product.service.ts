@@ -32,30 +32,14 @@ export const productService = {
    * Create new product
    */
   async create(data: CreateProductInput) {
-    let categoryId = data.categoryId;
-
-    if (data.newCategoryName) {
-      const newCategory = await prisma.category.create({
-        data: { name: data.newCategoryName },
-      });
-      categoryId = newCategory.id;
-    }
-
-    if (!categoryId) throw new Error("Category is required");
-
     // Verify category exists
     const category = await prisma.category.findUnique({
-      where: { id: categoryId },
+      where: { id: data.categoryId },
     });
     if (!category) throw new Error("Category not found");
 
-    const { newCategoryName, categoryId: _, ...productData } = data as any;
-
     return prisma.product.create({
-      data: {
-        ...productData,
-        categoryId: categoryId,
-      },
+      data,
       include: {
         category: { select: { id: true, name: true, color: true } },
       },

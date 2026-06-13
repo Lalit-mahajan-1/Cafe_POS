@@ -31,9 +31,9 @@ type ReportOrder = {
 };
 
 const money = (value: number) =>
-  new Intl.NumberFormat("en-IN", {
+  new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "INR",
+    currency: "USD",
     maximumFractionDigits: 2,
   }).format(value);
 
