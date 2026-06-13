@@ -116,8 +116,6 @@ $RECYCLE.BIN/
 .eslintcache
 .stylelintcache
 
-/public/uploads/avatars/*
-!/public/uploads/avatars/.gitkeep
 # ───────────────────────────────────────────────
 *.pem
 *.key
