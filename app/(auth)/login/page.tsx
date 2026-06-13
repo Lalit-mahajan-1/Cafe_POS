@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Fraunces, DM_Sans } from "next/font/google";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 
@@ -79,7 +78,6 @@ function LoginForm() {
           </p>
         </div>
 
-
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label
@@ -93,9 +91,7 @@ function LoginForm() {
               type="email"
               placeholder="e.g. sarah@cafe.com"
               value={form.email}
-              onChange={(e) =>
-                setForm({ ...form, email: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="w-full px-4 py-2.5 bg-[#FDFBF7] border border-[#E8E0D8] rounded-lg text-[#000505] placeholder:text-[#C4B8AC] focus:outline-none focus:border-[#C86446] focus:ring-2 focus:ring-[#C86446]/15 transition-all duration-200 text-sm"
               required
             />
@@ -125,9 +121,7 @@ function LoginForm() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#C4B8AC] hover:text-[#705C53] transition-colors duration-200 cursor-pointer"
                 tabIndex={-1}
-                aria-label={
-                  showPassword ? "Hide password" : "Show password"
-                }
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -162,16 +156,6 @@ function LoginForm() {
             )}
           </button>
         </form>
-      </div>
-
-      <div className="mt-6 text-center">
-        <span className="text-sm text-[#C4B8AC]">New to the counter? </span>
-        <Link
-          href="/register"
-          className="inline-block text-sm text-[#705C53] font-medium border-b border-[#705C53]/30 hover:text-[#C86446] hover:border-[#C86446]/30 transition-all duration-200 pb-0.5"
-        >
-          Create an account
-        </Link>
       </div>
     </div>
   );
