@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   Package,
   TicketPercent,
   X,
+  Zap,
 } from "lucide-react";
 import type {
   CartItem,
@@ -15,6 +16,7 @@ import type {
   Customer,
   FloorTable,
   Totals,
+  Promotion,
 } from "./pos-types";
 import {
   formatMoney,
@@ -31,11 +33,12 @@ type Props = {
   couponCode: string;
   paymentMethod: PaymentMethod;
   totals: Totals;
+  promotions?: Promotion[];
   loading: boolean;
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onCouponChange: (code: string) => void;
   onPaymentChange: (method: PaymentMethod) => void;
-  onConfirmOrder: () => void;
+  onConfirmOrder: (promotionId?: string) => void;
   isDraftCheckout?: boolean;
 };
 
@@ -57,6 +60,7 @@ export default function CartSidebar({
   couponCode,
   paymentMethod,
   totals,
+  promotions = [],
   loading,
   onUpdateQuantity,
   onCouponChange,
@@ -176,11 +180,66 @@ export default function CartSidebar({
     appliedCodeRef.current = "";
   };
 
-  // Calculated totals with coupon discount applied
-  const discountAmount = coupon.status === "valid" ? coupon.discountAmount : 0;
+  // Evaluate best auto promotion
+  const bestPromotion = useMemo(() => {
+    if (!promotions || promotions.length === 0) return null;
+
+    let bestPromo: Promotion | null = null;
+    let bestDiscount = 0;
+
+    for (const promo of promotions) {
+      let isEligible = false;
+
+      if (promo.appliesTo === "ORDER") {
+        if (promo.minOrderAmount && totals.subtotal >= promo.minOrderAmount) {
+          isEligible = true;
+        }
+      } else if (promo.appliesTo === "PRODUCT") {
+        if (promo.productId && promo.minQuantity) {
+          const item = cart.find(i => i.product.id === promo.productId);
+          if (item && item.quantity >= promo.minQuantity) {
+            isEligible = true;
+          }
+        }
+      }
+
+      if (isEligible) {
+        let discount = 0;
+        if (promo.discountType === "PERCENTAGE") {
+          discount = (totals.subtotal * promo.discountValue) / 100;
+        } else {
+          discount = promo.discountValue;
+        }
+
+        if (discount > bestDiscount) {
+          bestDiscount = discount;
+          bestPromo = promo;
+        }
+      }
+    }
+
+    return bestPromo ? { promotion: bestPromo, discountAmount: bestDiscount } : null;
+  }, [cart, totals.subtotal, promotions]);
+
+
+  // Calculated totals with best discount applied
+  const manualDiscountAmount = coupon.status === "valid" ? coupon.discountAmount : 0;
+  const autoDiscountAmount = bestPromotion ? bestPromotion.discountAmount : 0;
+
+  const finalDiscountAmount = Math.max(manualDiscountAmount, autoDiscountAmount);
+  
+  let activeDiscountSource: "COUPON" | "PROMOTION" | null = null;
+  if (finalDiscountAmount > 0) {
+    if (autoDiscountAmount > manualDiscountAmount) {
+      activeDiscountSource = "PROMOTION";
+    } else {
+      activeDiscountSource = "COUPON";
+    }
+  }
+
   const finalTotal = Math.max(
     0,
-    totals.subtotal + totals.taxAmount - discountAmount
+    totals.subtotal + totals.taxAmount - finalDiscountAmount
   );
 
   return (
@@ -327,7 +386,7 @@ export default function CartSidebar({
           </div>
 
           {/* Coupon feedback */}
-          {coupon.status === "valid" && (
+          {activeDiscountSource === "COUPON" && coupon.status === "valid" && (
             <div className="mt-2 flex items-start gap-2 rounded-md bg-emerald-100 border border-emerald-300 px-3 py-2">
               <CheckCircle2 className="size-4 text-emerald-600 shrink-0 mt-0.5" />
               <div className="text-xs text-emerald-800">
@@ -341,6 +400,28 @@ export default function CartSidebar({
                 </p>
               </div>
             </div>
+          )}
+
+          {activeDiscountSource === "PROMOTION" && bestPromotion && (
+            <div className="mt-2 flex items-start gap-2 rounded-md bg-purple-100 border border-purple-300 px-3 py-2">
+              <Zap className="size-4 text-purple-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-purple-800">
+                <p className="font-semibold">Auto-applied: {bestPromotion.promotion.name}</p>
+                <p className="mt-0.5">
+                  You save {formatMoney(bestPromotion.discountAmount)}
+                </p>
+                {coupon.status === "valid" && (
+                  <p className="mt-1 text-xs opacity-80 font-medium">(Better than manual coupon)</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {coupon.status === "valid" && activeDiscountSource === "PROMOTION" && (
+             <div className="mt-2 flex items-start gap-2 rounded-md bg-amber-100 border border-amber-300 px-3 py-2">
+                <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800">Manual coupon valid, but auto-promotion gives a better discount.</p>
+             </div>
           )}
 
           {coupon.status === "invalid" && (
@@ -365,13 +446,13 @@ export default function CartSidebar({
           </div>
           <div
             className={`flex justify-between ${
-              discountAmount > 0 ? "text-emerald-400" : "text-[#F3EFE8]/70"
+              finalDiscountAmount > 0 ? (activeDiscountSource === "PROMOTION" ? "text-purple-400" : "text-emerald-400") : "text-[#F3EFE8]/70"
             }`}
           >
             <span>Discount</span>
             <span>
-              {discountAmount > 0 ? "−" : ""}
-              {formatMoney(discountAmount)}
+              {finalDiscountAmount > 0 ? "−" : ""}
+              {formatMoney(finalDiscountAmount)}
             </span>
           </div>
           <div className="flex justify-between border-t border-[#705C53] pt-3 text-lg font-bold">
@@ -402,7 +483,7 @@ export default function CartSidebar({
 
         {/* Confirm */}
         <button
-          onClick={onConfirmOrder}
+          onClick={() => onConfirmOrder(activeDiscountSource === "PROMOTION" ? bestPromotion?.promotion.id : undefined)}
           disabled={loading || !canConfirm}
           className="w-full rounded-md bg-[#C86446] px-4 py-3 font-semibold text-white hover:bg-[#A84F38] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >

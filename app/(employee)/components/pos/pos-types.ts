@@ -84,11 +84,13 @@ export type CreatedOrder = {
   subtotal: number;
   taxAmount: number;
   discount: number;
+  discountReason: string | null;
   total: number;
   paymentMethod: string | null;
   customer: Customer | null;
   table: { id: string; label: string } | null;
   employee: { name: string; email: string };
+  createdAt: string;
   items: {
     quantity: number;
     unitPrice: number;
@@ -112,4 +114,17 @@ export type CouponState = {
   discountValue: number | null;
   discountAmount: number;
   message: string;
+};
+
+export type PromotionTarget = "ORDER" | "PRODUCT";
+
+export type Promotion = {
+  id: string;
+  name: string;
+  appliesTo: PromotionTarget;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+  minOrderAmount: number | null;
+  productId: string | null;
+  minQuantity: number | null;
 };

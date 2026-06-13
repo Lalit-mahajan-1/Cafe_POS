@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { CheckCircle2, FileText, Loader2, X } from "lucide-react";
 import type { CreatedOrder } from "./pos-types";
 import { formatMoney } from "./pos-constants";
+import InvoiceReceipt from "./InvoiceReceipt";
 
 type Props = {
   order: CreatedOrder | null;
@@ -17,6 +19,8 @@ export default function OrderSuccessModal({
   onMarkPaid,
   onNewOrder,
 }: Props) {
+  const [showInvoice, setShowInvoice] = useState(false);
+
   if (!order) return null;
 
   return (
@@ -83,7 +87,7 @@ export default function OrderSuccessModal({
         {/* Actions */}
         <div className="mt-5 flex gap-3 print:hidden">
           <button
-            onClick={() => window.print()}
+            onClick={() => setShowInvoice(true)}
             className="flex-1 flex items-center justify-center gap-2 rounded-md border border-[#E6DDD1] px-4 py-2.5 text-sm font-semibold text-[#705C53] hover:bg-[#F3EFE8] transition"
           >
             <FileText className="size-4" />
@@ -112,6 +116,14 @@ export default function OrderSuccessModal({
           </button>
         )}
       </section>
+
+      {showInvoice && (
+        <InvoiceReceipt 
+          order={order}
+          employeeName={order.employee.name}
+          onClose={() => setShowInvoice(false)}
+        />
+      )}
     </div>
   );
 }

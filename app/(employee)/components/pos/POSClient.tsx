@@ -11,6 +11,7 @@ import type {
   FloorTable,
   Product,
   ProductForm,
+  Promotion,
   UserSummary,
 } from "./pos-types";
 import { emptyProductForm, type PaymentMethod } from "./pos-constants";
@@ -37,6 +38,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
   // ── POS state ────────────────────────────────────────────────────────────
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [phoneLookup, setPhoneLookup] = useState("");
@@ -85,7 +87,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
     return () => window.clearTimeout(id);
   }, [loadFloorPlan]);
 
-  // ── Load products ────────────────────────────────────────────────────────
+  // ── Load products and promotions ─────────────────────────────────────────
   const loadProducts = useCallback(async () => {
     try {
       const res = await fetch("/api/pos/products");
@@ -100,10 +102,24 @@ export default function POSClient({ user }: { user: UserSummary }) {
     }
   }, []);
 
+  const loadPromotions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pos/promotions");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load promotions");
+      setPromotions(data.promotions || []);
+    } catch (err) {
+      console.error("[loadPromotions]", err);
+    }
+  }, []);
+
   useEffect(() => {
-    const id = window.setTimeout(() => void loadProducts(), 0);
+    const id = window.setTimeout(() => {
+      void loadProducts();
+      void loadPromotions();
+    }, 0);
     return () => window.clearTimeout(id);
-  }, [loadProducts]);
+  }, [loadProducts, loadPromotions]);
 
   // ── Totals ───────────────────────────────────────────────────────────────
   const totals = useMemo(() => {
@@ -274,7 +290,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
   };
 
   // ── Confirm order ─────────────────────────────────────────────────────────
-  const confirmOrder = async () => {
+  const confirmOrderWithPromotion = async (promotionId?: string) => {
     if (!isTakeout && !selectedTable) {
       setShowFloorModal(true);
       return;
@@ -292,16 +308,21 @@ export default function POSClient({ user }: { user: UserSummary }) {
     setMessage("");
 
     try {
-      const payload = {
+      const payload: any = {
         customerId: customer?.id ?? null,
         tableId: isTakeout ? null : selectedTable!.id,
         paymentMethod,
-        couponCode: couponCode.trim() || null,
         items: cart.map((i) => ({
           productId: i.product.id,
           quantity: i.quantity,
         })),
       };
+
+      if (couponCode.trim()) {
+        payload.couponCode = couponCode.trim();
+      } else if (promotionId) {
+        payload.promotionId = promotionId;
+      }
 
       const res = await fetch("/api/pos/orders", {
         method: "POST",
@@ -423,11 +444,15 @@ export default function POSClient({ user }: { user: UserSummary }) {
             couponCode={couponCode}
             paymentMethod={paymentMethod}
             totals={totals}
+            promotions={promotions}
             loading={loading}
             onUpdateQuantity={updateQuantity}
             onCouponChange={setCouponCode}
             onPaymentChange={setPaymentMethod}
-            onConfirmOrder={confirmOrder}
+            onConfirmOrder={(promotionId?: string) => {
+              // Override confirmOrder to accept promotionId
+              confirmOrderWithPromotion(promotionId);
+            }}
           />
         </section>
       </div>

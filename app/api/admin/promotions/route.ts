@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/sessions";
+import { getCurrentUser } from "@/lib/auth/session";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
