@@ -16,6 +16,7 @@ enum Role {
 enum OrderStatus {
   DRAFT
   PAID
+  COMPLETED
   CANCELLED
 }
 

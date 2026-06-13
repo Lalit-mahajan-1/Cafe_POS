@@ -2,16 +2,13 @@ import EmployeeMetricCard from "@/app/components/employee/EmployeeMetricCard";
 import EmployeeSidebar from "@/app/components/employee/EmployeeSidebar";
 import EmployeeTaskCard from "@/app/components/employee/EmployeeTaskCard";
 import { getCurrentUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
 import {
   Bell,
-  CalendarDays,
   ChefHat,
   CheckCircle2,
-  CircleDollarSign,
   Clock3,
   Coffee,
-  CreditCard,
-  PackageCheck,
   ReceiptText,
   TimerReset,
   TrendingUp,
@@ -19,38 +16,26 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-const priorityTasks = [
-  {
-    title: "Start a new counter order",
-    detail: "Use the POS terminal for dine-in, takeaway, taxes, discounts, and payment method capture.",
-    status: "POS",
-    href: "/pos",
-    action: "Open POS",
-    icon: <ReceiptText className="size-5" aria-hidden="true" />,
-  },
-  {
-    title: "Watch kitchen tickets",
-    detail: "Keep prepared items moving from order queue to service handoff without delaying the table.",
-    status: "KDS",
-    href: "/kds",
-    action: "Open KDS",
-    icon: <ChefHat className="size-5" aria-hidden="true" />,
-  },
-  {
-    title: "Assist QR ordering",
-    detail: "Generate or share a QR flow when customers need menu or UPI-ready access.",
-    status: "QR",
-    href: "/generate-qr",
-    action: "Open QR",
-    icon: <CreditCard className="size-5" aria-hidden="true" />,
-  },
-];
+type SalesRow = {
+  total_sales: number | null;
+};
 
-const serviceQueue = [
-  { ticket: "ORD-0048", table: "Counter", item: "Cappuccino + Croissant", status: "Draft" },
-  { ticket: "ORD-0051", table: "T04", item: "Masala Chai + Veg Club", status: "Preparing" },
-  { ticket: "ORD-0055", table: "Takeaway", item: "Cold Coffee + Brownie", status: "Payment" },
-];
+type CompletedRow = {
+  completed_count: bigint;
+};
+
+const formatMoney = (amount: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+
+const formatTime = (date: Date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -63,11 +48,73 @@ export default async function DashboardPage() {
     redirect("/admin");
   }
 
-  const joinedDate = new Date(user.createdAt).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const [todayOrders, activeOrders, recentActiveOrders, salesRows, completedRows] =
+    await Promise.all([
+      prisma.order.count({
+        where: {
+          employeeId: user.id,
+          createdAt: { gte: startOfToday },
+        },
+      }),
+      prisma.order.count({
+        where: {
+          employeeId: user.id,
+          status: "PAID",
+        },
+      }),
+      prisma.order.findMany({
+        where: {
+          employeeId: user.id,
+          status: "PAID",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: {
+          customer: true,
+          items: { include: { product: true } },
+        },
+      }),
+      prisma.$queryRaw<SalesRow[]>`
+        SELECT COALESCE(SUM("total"), 0)::float AS total_sales
+        FROM "Order"
+        WHERE "employeeId" = ${user.id}
+          AND "createdAt" >= ${startOfToday}
+          AND "status"::text IN ('PAID', 'COMPLETED')
+      `,
+      prisma.$queryRaw<CompletedRow[]>`
+        SELECT COUNT(*)::bigint AS completed_count
+        FROM "Order"
+        WHERE "employeeId" = ${user.id}
+          AND "createdAt" >= ${startOfToday}
+          AND "status"::text = 'COMPLETED'
+      `,
+    ]);
+
+  const todaySales = salesRows[0]?.total_sales || 0;
+  const completedToday = Number(completedRows[0]?.completed_count || 0);
+  const averageTicket = todayOrders > 0 ? todaySales / todayOrders : 0;
+
+  const priorityTasks = [
+    {
+      title: "Create a customer order",
+      detail: "Open the POS terminal for customer lookup, product selection, taxes, discount, and billing.",
+      status: "POS",
+      href: "/pos",
+      action: "Open POS",
+      icon: <ReceiptText className="size-5" aria-hidden="true" />,
+    },
+    {
+      title: "Complete active kitchen orders",
+      detail: `${activeOrders} paid ${activeOrders === 1 ? "order is" : "orders are"} waiting in your kitchen display.`,
+      status: "KDS",
+      href: "/kds",
+      action: "Open KDS",
+      icon: <ChefHat className="size-5" aria-hidden="true" />,
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-[#F3EFE8] text-[#000505]">
@@ -86,8 +133,7 @@ export default async function DashboardPage() {
                   Welcome back, {user.name}
                 </h1>
                 <p className="mt-2 max-w-2xl text-[#705C53]">
-                  Run cafe service from one place: POS orders, kitchen display, customers, products,
-                  taxes, discounts, and payments.
+                  Your live shift view is calculated from orders connected to your employee account.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm sm:flex">
@@ -96,38 +142,38 @@ export default async function DashboardPage() {
                   <p className="mt-1 font-semibold">{user.role}</p>
                 </div>
                 <div className="rounded-lg bg-[#F3EFE8] px-4 py-3">
-                  <p className="text-[#705C53]">Joined</p>
-                  <p className="mt-1 font-semibold">{joinedDate}</p>
+                  <p className="text-[#705C53]">Active KDS</p>
+                  <p className="mt-1 font-semibold">{activeOrders}</p>
                 </div>
               </div>
             </div>
           </header>
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Employee shift summary">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Employee order metrics">
             <EmployeeMetricCard
-              label="Open orders"
-              value="12"
-              detail="Draft and preparing tickets need employee action."
+              label="Orders today"
+              value={String(todayOrders)}
+              detail="All orders created by this employee since shift day start."
               icon={<ReceiptText className="size-6" aria-hidden="true" />}
               variant="terracotta"
             />
             <EmployeeMetricCard
-              label="Products live"
-              value="28"
-              detail="Coffee, tea, pastries, sandwiches, desserts, beverages."
-              icon={<PackageCheck className="size-6" aria-hidden="true" />}
+              label="Active orders"
+              value={String(activeOrders)}
+              detail="Paid orders waiting for kitchen completion."
+              icon={<ChefHat className="size-6" aria-hidden="true" />}
             />
             <EmployeeMetricCard
-              label="Avg handoff"
-              value="09m"
-              detail="Target service window for cafe counter flow."
+              label="Completed today"
+              value={String(completedToday)}
+              detail="Kitchen orders marked done by this employee today."
+              icon={<CheckCircle2 className="size-6" aria-hidden="true" />}
+            />
+            <EmployeeMetricCard
+              label="Sales today"
+              value={formatMoney(todaySales)}
+              detail={`Average ticket: ${formatMoney(averageTicket)}.`}
               icon={<TimerReset className="size-6" aria-hidden="true" />}
-            />
-            <EmployeeMetricCard
-              label="Shift payments"
-              value="Rs 24.8k"
-              detail="Cash, card, and UPI are tracked per paid order."
-              icon={<CircleDollarSign className="size-6" aria-hidden="true" />}
               variant="espresso"
             />
           </section>
@@ -136,9 +182,9 @@ export default async function DashboardPage() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-semibold">Priority Work</h2>
+                  <h2 className="text-2xl font-semibold">Shift Selection</h2>
                   <p className="text-sm text-[#705C53]">
-                    Employee actions mapped to the cafe POS problem flow.
+                    Choose the right workspace for employee service flow.
                   </p>
                 </div>
                 <Link
@@ -149,56 +195,30 @@ export default async function DashboardPage() {
                 </Link>
               </div>
 
-              <div className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 {priorityTasks.map((task) => (
                   <EmployeeTaskCard key={task.title} {...task} />
                 ))}
               </div>
             </div>
 
-            <aside className="space-y-4">
-              <div className="rounded-lg border border-[#E6DDD1] bg-[#FDFBF7] p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold">Service Alerts</h2>
-                  <Bell className="size-5 text-[#C86446]" aria-hidden="true" />
-                </div>
-                <div className="mt-5 space-y-4">
-                  <div className="flex gap-3">
-                    <Clock3 className="mt-1 size-5 text-[#C86446]" aria-hidden="true" />
-                    <p className="text-sm text-[#705C53]">
-                      Draft orders should be closed or paid before shift handover.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="mt-1 size-5 text-[#C86446]" aria-hidden="true" />
-                    <p className="text-sm text-[#705C53]">
-                      Paid orders can move to kitchen display and service handoff.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CalendarDays className="mt-1 size-5 text-[#C86446]" aria-hidden="true" />
-                    <p className="text-sm text-[#705C53]">
-                      Test employee login: john@cafe.com with password employee123.
-                    </p>
-                  </div>
-                </div>
+            <aside className="rounded-lg border border-[#E6DDD1] bg-[#FDFBF7] p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-semibold">Service Alerts</h2>
+                <Bell className="size-5 text-[#C86446]" aria-hidden="true" />
               </div>
-
-              <div id="payments" className="rounded-lg bg-[#705C53] p-5 text-[#FDFBF7] shadow-sm">
-                <h2 className="text-xl font-semibold">Payment Mix</h2>
-                <div className="mt-5 space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-[#F3EFE8]/75">UPI</span>
-                    <strong>48%</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#F3EFE8]/75">Card</span>
-                    <strong>34%</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#F3EFE8]/75">Cash</span>
-                    <strong>18%</strong>
-                  </div>
+              <div className="mt-5 space-y-4">
+                <div className="flex gap-3">
+                  <Clock3 className="mt-1 size-5 text-[#C86446]" aria-hidden="true" />
+                  <p className="text-sm text-[#705C53]">
+                    Keep paid orders moving through Kitchen Display until they are completed.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <CheckCircle2 className="mt-1 size-5 text-[#C86446]" aria-hidden="true" />
+                  <p className="text-sm text-[#705C53]">
+                    Completed KDS orders stop counting as active but remain in today&apos;s sales.
+                  </p>
                 </div>
               </div>
             </aside>
@@ -207,35 +227,44 @@ export default async function DashboardPage() {
           <section className="rounded-lg border border-[#E6DDD1] bg-[#FDFBF7] p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold">Live Service Queue</h2>
+                <h2 className="text-2xl font-semibold">Your Active Order Queue</h2>
                 <p className="text-sm text-[#705C53]">
-                  A cafe-friendly view of order number, table/counter, item summary, and current state.
+                  Latest paid orders joined with customer, item, and employee data.
                 </p>
               </div>
               <span className="flex items-center gap-2 rounded-full bg-[#F3EFE8] px-3 py-1 text-sm font-semibold text-[#705C53]">
                 <TrendingUp className="size-4" aria-hidden="true" />
-                Service pace healthy
+                {activeOrders} active
               </span>
             </div>
 
             <div className="mt-5 overflow-hidden rounded-lg border border-[#E6DDD1]">
-              <div className="grid grid-cols-4 bg-[#F3EFE8] px-4 py-3 text-sm font-semibold text-[#705C53]">
+              <div className="grid grid-cols-[1fr_1fr_2fr_1fr] bg-[#F3EFE8] px-4 py-3 text-sm font-semibold text-[#705C53]">
                 <span>Order</span>
-                <span>Table</span>
+                <span>Customer</span>
                 <span>Items</span>
-                <span>Status</span>
+                <span>Created</span>
               </div>
-              {serviceQueue.map((order) => (
+              {recentActiveOrders.map((order) => (
                 <div
-                  key={order.ticket}
-                  className="grid grid-cols-4 border-t border-[#E6DDD1] px-4 py-4 text-sm"
+                  key={order.id}
+                  className="grid grid-cols-[1fr_1fr_2fr_1fr] border-t border-[#E6DDD1] px-4 py-4 text-sm"
                 >
-                  <strong>{order.ticket}</strong>
-                  <span>{order.table}</span>
-                  <span>{order.item}</span>
-                  <span className="font-semibold text-[#C86446]">{order.status}</span>
+                  <strong>{order.orderNumber}</strong>
+                  <span>{order.customer?.name || "Walk-in"}</span>
+                  <span>
+                    {order.items
+                      .map((item) => `${item.product.name} x ${item.quantity}`)
+                      .join(", ")}
+                  </span>
+                  <span className="font-semibold text-[#C86446]">{formatTime(order.createdAt)}</span>
                 </div>
               ))}
+              {recentActiveOrders.length === 0 && (
+                <div className="border-t border-[#E6DDD1] px-4 py-8 text-center text-sm text-[#705C53]">
+                  No active kitchen orders for your account.
+                </div>
+              )}
             </div>
           </section>
         </div>

@@ -48,7 +48,7 @@ function LoginForm() {
         throw new Error(
           typeof data.error === "string" ? data.error : "Login failed"
         );
-      const dest = data.user.role === "ADMIN" ? "/admin" : "/pos";
+      const dest = data.user.role === "ADMIN" ? "/admin" : "/dashboard";
       router.push(dest);
       router.refresh();
     } catch (err: any) {
