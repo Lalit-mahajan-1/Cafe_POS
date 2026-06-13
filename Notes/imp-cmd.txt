@@ -1,0 +1,28 @@
+
+🚀 FIRST-TIME SETUP (after cloning repo)
+  npm install
+  npx prisma generate
+  npx prisma migrate dev
+  npm run dev
+
+🔄 AFTER PULLING TEAMMATE'S CODE
+  npm install
+  npx prisma migrate dev        # applies new migrations
+
+✏️  AFTER YOU CHANGE schema.prisma
+  npx prisma migrate dev --name what_you_changed
+  git add prisma/                # commit schema + migrations!
+
+👀 VIEW DATABASE VISUALLY
+  npx prisma studio              # opens localhost:5555
+
+🆘 EMERGENCY (DB broken / out of sync)
+  npx prisma migrate reset       # ⚠️  DELETES ALL DATA — dev only
+
+🚫 DO NOT
+  • Don't use `prisma db push` in shared projects
+  • Don't manually edit migration SQL files
+  • Don't forget to commit prisma/migrations/ folder
+  • Don't run `migrate reset` in production
+
+💡 TIP: After auth changes, clear browser cookies (DevTools → Application)

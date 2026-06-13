@@ -1,0 +1,309 @@
+═══════════════════════════════════════════════════════════════════════
+   CONCURRENCY HANDLING IN SEAT BOOKING SYSTEM
+   A Complete Guide for Developers
+═══════════════════════════════════════════════════════════════════════
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 1. THE PROBLEM: RACE CONDITION                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+A "race condition" happens when 2+ users/processes try to modify the
+same data AT THE SAME TIME, and the final result depends on the order
+of execution.
+
+EXAMPLE WITHOUT PROTECTION:
+
+  Time | User A                    | User B
+  -----|---------------------------|---------------------------
+  T1   | Reads seat A1: free ✅   | Reads seat A1: free ✅
+  T2   | Marks A1 as booked        | Marks A1 as booked
+  T3   | Creates booking for A     | Creates booking for B
+  T4   | "Success!" ✅             | "Success!" ✅
+
+  RESULT: Both users got the same seat. DISASTER.
+  Real-world impact: Double-booked flights, oversold tickets,
+  duplicate payments, inventory going negative.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 2. THE SOLUTION: DATABASE TRANSACTIONS + ROW LOCKING                │
+└─────────────────────────────────────────────────────────────────────┘
+
+We use TWO database features together:
+
+  A) TRANSACTION
+     A group of operations that ALL succeed or ALL fail.
+     If anything fails, everything is rolled back automatically.
+     Properties: ACID (Atomicity, Consistency, Isolation, Durability)
+
+  B) ROW-LEVEL LOCK (SELECT ... FOR UPDATE)
+     Tells PostgreSQL: "I'm working on this row. Make everyone else
+     WAIT until I'm done."
+     The lock is automatically released when the transaction ends
+     (either COMMIT or ROLLBACK).
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 3. OUR CODE — LINE BY LINE                                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+  // services/seat.service.ts
+
+  async bookSeat(seatId, userId) {
+    return prisma.$transaction(async (tx) => {
+      
+      // STEP 1: Lock the row with raw SQL
+      const seats = await tx.$queryRaw`
+        SELECT id, "isBooked" FROM "Seat" 
+        WHERE id = ${seatId} 
+        FOR UPDATE                              ← THE MAGIC KEYWORD
+      `;
+      
+      const seat = seats[0];
+      
+      // STEP 2: Check current state (after acquiring lock)
+      if (!seat) throw new Error("Seat not found");
+      if (seat.isBooked) throw new Error("Seat already booked");
+      
+      // STEP 3: Update — safe because we hold the lock
+      await tx.seat.update({
+        where: { id: seatId },
+        data: { isBooked: true },
+      });
+      
+      // STEP 4: Create booking record
+      const booking = await tx.booking.create({
+        data: { seatId, userId },
+      });
+      
+      return booking;
+    });
+    // Transaction ends here → COMMIT → lock auto-released
+  }
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 4. WHAT HAPPENS WHEN 5 USERS CLICK THE SAME SEAT                    │
+└─────────────────────────────────────────────────────────────────────┘
+
+  Time   | User 1            | User 2            | User 3
+  -------|-------------------|-------------------|-------------------
+  0ms    | BEGIN TX          | BEGIN TX          | BEGIN TX
+  5ms    | LOCK seat A1 🔒  | Try to lock...    | Try to lock...
+         | (gets lock)       | (WAITS)           | (WAITS)
+  10ms   | Read: free ✅    | (still waiting)   | (still waiting)
+  15ms   | UPDATE seat       |                   |
+  20ms   | INSERT booking    |                   |
+  25ms   | COMMIT 🔓        |                   |
+         | (lock released)   |                   |
+  26ms   |                   | (gets lock) 🔒   | (still waiting)
+  27ms   |                   | Read: BOOKED ❌  |
+  28ms   |                   | ROLLBACK 🔓      | (gets lock) 🔒
+         |                   | "Already booked"  |
+  29ms   |                   |                   | Read: BOOKED ❌
+  30ms   |                   |                   | ROLLBACK 🔓
+         |                   |                   | "Already booked"
+
+  KEY INSIGHT: Users 2-5 don't get errors immediately. They WAIT for
+  the lock, then see the updated state (BOOKED), then fail safely.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 5. WHY NOT JUST USE prisma.findUnique() ?                           │
+└─────────────────────────────────────────────────────────────────────┘
+
+  // ❌ WRONG WAY (race condition possible)
+  const seat = await prisma.seat.findUnique({ where: { id } });
+  if (seat.isBooked) throw new Error("Booked");
+  await prisma.seat.update({ where: { id }, data: { isBooked: true } });
+
+  PROBLEM: findUnique() does NOT lock the row. Between findUnique()
+  and update(), another transaction can sneak in and book the seat.
+  Both transactions will see "free" and both will book.
+
+  FIX: Use $queryRaw with FOR UPDATE inside a $transaction.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 6. TWO APPROACHES TO CONCURRENCY                                    │
+└─────────────────────────────────────────────────────────────────────┘
+
+  A) PESSIMISTIC LOCKING (what we used)
+     - Lock first, then operate
+     - "Assume conflicts WILL happen"
+     - Use: SELECT ... FOR UPDATE
+     - PRO: Guaranteed safety
+     - CON: Other requests must WAIT (small perf hit)
+     - BEST FOR: High contention (everyone wants same seat)
+
+  B) OPTIMISTIC LOCKING (alternative)
+     - Don't lock. Just try the update with a condition.
+     - "Assume conflicts WON'T happen, retry if they do"
+     - Use: UPDATE WHERE isBooked = false
+     - PRO: No waiting, faster
+     - CON: Need retry logic for failures
+     - BEST FOR: Low contention (different seats usually)
+
+  OPTIMISTIC EXAMPLE:
+    const updated = await prisma.seat.updateMany({
+      where: { id: seatId, isBooked: false },  // ← condition
+      data: { isBooked: true },
+    });
+    if (updated.count === 0) throw new Error("Already booked");
+
+  This works for SIMPLE cases. For complex workflows (book + pay +
+  notify), use transactions with FOR UPDATE.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 7. WHAT IS ACID? (Why Databases Are Magic)                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+  A — ATOMICITY
+      All operations in a transaction succeed together, or none do.
+      Example: If INSERT booking fails, the seat UPDATE is undone.
+
+  C — CONSISTENCY
+      DB always moves from one valid state to another.
+      Example: No seat can be "half-booked".
+
+  I — ISOLATION
+      Concurrent transactions don't interfere with each other.
+      Example: User B doesn't see User A's mid-transaction changes.
+
+  D — DURABILITY
+      Once committed, data survives crashes, power loss, etc.
+      Example: After COMMIT, your booking is safe forever.
+
+  PostgreSQL is ACID-compliant. MongoDB has limited ACID guarantees.
+  This is one reason SQL is preferred for financial/critical data.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 8. COMMON CONCURRENCY BUGS IN BEGINNERS' CODE                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+  BUG 1: "Check then Act" without lock
+    if (await checkAvailable()) {        ← gap between these
+      await book();                       ← someone else booked!
+    }
+
+  BUG 2: Using a single update without condition
+    await prisma.seat.update({ where: {id}, data: {isBooked: true} });
+    // No check! Overwrites even if booked.
+
+  BUG 3: Inventory going negative
+    const product = await getProduct();
+    if (product.stock > 0) {
+      product.stock -= 1;                 ← multiple users decrement
+      await save(product);                ← stock can go to -5
+    }
+
+  BUG 4: Double-charging credit cards
+    if (!order.paid) {
+      await chargeCard();                 ← 2 requests both charge
+      order.paid = true;
+    }
+
+  ALL OF THESE need: $transaction + FOR UPDATE or unique constraints.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 9. OTHER DEFENSES (Defense in Depth)                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+  Beyond locks, also use:
+
+  A) DATABASE CONSTRAINTS
+     Our Booking model has:  seatId String @unique
+     So even if our lock failed, the DB would reject a duplicate
+     booking with a unique constraint error.
+     → "Belt and suspenders" approach
+
+  B) IDEMPOTENCY KEYS
+     Client sends a unique key with each request.
+     Server checks if it processed this key before.
+     Prevents duplicate submissions (e.g., double-click).
+
+  C) RATE LIMITING
+     Limit requests per user (e.g., max 10/min).
+     Prevents abuse and accidental loops.
+
+  D) RETRY WITH BACKOFF
+     If a transaction fails (deadlock), retry 2-3 times with
+     increasing delay (100ms, 500ms, 2s).
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 10. HOW TO TEST CONCURRENCY                                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+  USE Promise.all() TO FIRE SIMULTANEOUS REQUESTS:
+
+    Promise.all([
+      bookSeat(id),
+      bookSeat(id),
+      bookSeat(id),
+      bookSeat(id),
+      bookSeat(id),
+    ]);
+
+  EXPECTED RESULT:
+    1 success (201)
+    4 failures (400 — "Seat already booked")
+
+  IF YOU GET MULTIPLE SUCCESSES → Your lock is broken!
+
+  ADVANCED TOOLS:
+    - k6 (modern load testing)
+    - Apache Bench (ab -n 1000 -c 100 ...)
+    - Artillery (scenario testing)
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 11. KEY TAKEAWAYS — MEMORIZE THESE                                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+  ✅ Always use transactions for multi-step DB operations
+  ✅ Use FOR UPDATE to lock rows when conflict is likely
+  ✅ Add UNIQUE constraints as a safety net
+  ✅ Test with Promise.all() before shipping
+  ✅ Understand the difference: optimistic vs pessimistic
+  ✅ Never do "check then act" without a lock
+
+  ❌ Don't trust findUnique() to prevent races
+  ❌ Don't hold transactions open for I/O (email, HTTP calls)
+  ❌ Don't lock more rows than necessary (perf killer)
+  ❌ Don't catch + ignore transaction errors silently
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 12. REAL-WORLD ANALOGY                                              │
+└─────────────────────────────────────────────────────────────────────┘
+
+  Imagine a library with ONE copy of a book.
+
+  WITHOUT LOCKS:
+    5 people walk in, all check the catalog ("available!"), all walk
+    to the shelf, all grab... but only one actually gets it.
+    Chaos. Disappointment. Arguments.
+
+  WITH FOR UPDATE LOCK:
+    First person tells the librarian: "I want this book."
+    Librarian puts up a "DO NOT TOUCH" sign.
+    Person 2-5 must WAIT in line.
+    Person 1 takes book, librarian removes sign.
+    Persons 2-5 step up one by one — all see "checked out" and leave.
+    Order. Safety. Clarity.
+
+  The "DO NOT TOUCH" sign = SELECT FOR UPDATE 🔒
+
+
+═══════════════════════════════════════════════════════════════════════
+   END OF GUIDE
+   
+   Remember: Concurrency bugs are SILENT KILLERS in production.
+   They work fine in dev (1 user) but break catastrophically with
+   real traffic. Test with Promise.all() — always.
+═══════════════════════════════════════════════════════════════════════
