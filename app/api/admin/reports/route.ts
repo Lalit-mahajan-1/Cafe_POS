@@ -126,14 +126,12 @@ export async function GET(req: NextRequest) {
     const { start, end, previousStart, previousEnd } = getPeriodRange(period);
 
     const orderWhere = {
-      status: "PAID" as const,
       ...(start ? { createdAt: { gte: start, lte: end } } : {}),
       ...(userId ? { employeeId: userId } : {}),
       ...(productId ? { items: { some: { productId } } } : {}),
     };
 
     const previousOrderWhere = {
-      status: "PAID" as const,
       ...(previousStart && previousEnd
         ? { createdAt: { gte: previousStart, lt: previousEnd } }
         : {}),
@@ -141,10 +139,46 @@ export async function GET(req: NextRequest) {
       ...(productId ? { items: { some: { productId } } } : {}),
     };
 
-    const [orders, previousOrders, users, products, categories] =
-      await Promise.all([
+    const paidOrderWhere = {
+      ...orderWhere,
+      status: "PAID" as const,
+    };
+
+    const previousPaidOrderWhere = {
+      ...previousOrderWhere,
+      status: "PAID" as const,
+    };
+
+    const [
+      orders,
+      paidOrders,
+      previousOrders,
+      previousPaidOrders,
+      users,
+      products,
+      categories,
+    ] = await Promise.all([
         prisma.order.findMany({
           where: orderWhere,
+          orderBy: { total: "desc" },
+          include: {
+            employee: { select: { id: true, name: true } },
+            customer: { select: { name: true } },
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    category: { select: { id: true, name: true, color: true } },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        prisma.order.findMany({
+          where: paidOrderWhere,
           orderBy: { createdAt: "desc" },
           include: {
             employee: { select: { id: true, name: true } },
@@ -166,6 +200,10 @@ export async function GET(req: NextRequest) {
           where: previousOrderWhere,
           select: { total: true },
         }),
+        prisma.order.findMany({
+          where: previousPaidOrderWhere,
+          select: { total: true },
+        }),
         prisma.user.findMany({
           where: { archived: false },
           select: { id: true, name: true },
@@ -182,14 +220,15 @@ export async function GET(req: NextRequest) {
       ]);
 
     const typedOrders = orders as ReportOrder[];
-    const revenue = typedOrders.reduce((sum, order) => sum + order.total, 0);
-    const previousRevenue = previousOrders.reduce(
+    const typedPaidOrders = paidOrders as ReportOrder[];
+    const revenue = typedPaidOrders.reduce((sum, order) => sum + order.total, 0);
+    const previousRevenue = previousPaidOrders.reduce(
       (sum, order) => sum + order.total,
       0
     );
-    const averageOrder = typedOrders.length ? revenue / typedOrders.length : 0;
-    const previousAverage = previousOrders.length
-      ? previousRevenue / previousOrders.length
+    const averageOrder = typedPaidOrders.length ? revenue / typedPaidOrders.length : 0;
+    const previousAverage = previousPaidOrders.length
+      ? previousRevenue / previousPaidOrders.length
       : 0;
 
     const productMap = new Map<
@@ -201,7 +240,7 @@ export async function GET(req: NextRequest) {
       { category: string; revenue: number; color: string }
     >();
 
-    for (const order of typedOrders) {
+    for (const order of typedPaidOrders) {
       for (const item of order.items) {
         const product = productMap.get(item.product.id) ?? {
           product: item.product.name,
@@ -252,7 +291,7 @@ export async function GET(req: NextRequest) {
           helper: "Since previous period",
         },
       },
-      salesSeries: buildSalesSeries(typedOrders, period),
+      salesSeries: buildSalesSeries(typedPaidOrders, period),
       categoryMix: Array.from(categoryMap.values())
         .sort((a, b) => b.revenue - a.revenue)
         .map((category) => ({
