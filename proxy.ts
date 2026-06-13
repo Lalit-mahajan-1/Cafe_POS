@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyTokenEdge } from "@/lib/auth/jwt-edge";
 
 const ADMIN_ROUTES = ["/admin"];
-const POS_ROUTES = ["/pos", "/kds"];
+const EMPLOYEE_ROUTES = ["/dashboard", "/pos", "/kds"];
 const AUTH_ROUTES = ["/login", "/register"];
-const PUBLIC_ROUTES = ["/", "/about"];
 
 export async function proxy(req: NextRequest) {
   const token = req.cookies.get("auth-token")?.value;
@@ -14,25 +13,22 @@ export async function proxy(req: NextRequest) {
   const isLoggedIn = payload !== null;
   const userRole = payload?.role;
 
-  const isAdminRoute = ADMIN_ROUTES.some((r) => pathname.startsWith(r));
-  const isPosRoute = POS_ROUTES.some((r) => pathname.startsWith(r));
-  const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
+  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+  const isEmployeeRoute = EMPLOYEE_ROUTES.some((route) => pathname.startsWith(route));
+  const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 
-  // ─── Block unauthenticated users from protected routes ────────
-  if ((isAdminRoute || isPosRoute) && !isLoggedIn) {
+  if ((isAdminRoute || isEmployeeRoute) && !isLoggedIn) {
     const response = NextResponse.redirect(new URL("/login", req.url));
     if (token) response.cookies.delete("auth-token");
     return response;
   }
 
-  // ─── Block EMPLOYEE from admin routes ─────────────────────────
   if (isAdminRoute && userRole !== "ADMIN") {
-    return NextResponse.redirect(new URL("/pos", req.url));
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // ─── Logged-in users redirected from /login or /register ──────
   if (isAuthRoute && isLoggedIn) {
-    const dest = userRole === "ADMIN" ? "/admin" : "/pos";
+    const dest = userRole === "ADMIN" ? "/admin" : "/dashboard";
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
@@ -40,5 +36,12 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/pos/:path*", "/kds/:path*", "/login", "/register"],
+  matcher: [
+    "/admin/:path*",
+    "/dashboard/:path*",
+    "/pos/:path*",
+    "/kds/:path*",
+    "/login",
+    "/register",
+  ],
 };

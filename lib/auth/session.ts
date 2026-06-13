@@ -2,9 +2,31 @@ import { cookies } from "next/headers";
 import { verifyToken } from "./jwt";
 import { prisma } from "@/lib/prisma";
 
-export const getCurrentUser = async () => {
+type RequestLike = {
+  cookies?: {
+    get(name: string): { value?: string } | undefined;
+  };
+  headers?: {
+    get(name: string): string | null;
+  };
+};
+
+const getAuthToken = async (request?: RequestLike) => {
+  const authorization = request?.headers?.get("authorization");
+
+  if (authorization?.startsWith("Bearer ")) {
+    return authorization.slice("Bearer ".length).trim();
+  }
+
+  const requestCookie = request?.cookies?.get("auth-token")?.value;
+  if (requestCookie) return requestCookie;
+
   const cookieStore = await cookies();
-  const token = cookieStore.get("auth-token")?.value;
+  return cookieStore.get("auth-token")?.value ?? null;
+};
+
+export const getCurrentUser = async (request?: RequestLike) => {
+  const token = await getAuthToken(request);
   if (!token) return null;
 
   const payload = verifyToken(token);
