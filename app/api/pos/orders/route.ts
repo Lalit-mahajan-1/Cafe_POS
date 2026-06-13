@@ -1,88 +1,201 @@
-import { requireRole } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-
-type OrderLineInput = {
-  productId: string;
-  quantity: number;
-};
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireRole(["ADMIN", "EMPLOYEE"]);
+    // ── Auth ───────────────────────────────────────────────────────────────
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
+    const { customerId, tableId, paymentMethod, discount, items } = body as {
+      customerId?: string;
+      tableId: string;
+      paymentMethod: string;
+      discount: number;
+      items: { productId: string; quantity: number }[];
+    };
 
-    const customerId = body.customerId ? String(body.customerId) : null;
-    const paymentMethod = body.paymentMethod ? String(body.paymentMethod) : null;
-    const discount = Number(body.discount || 0);
-    const lines = Array.isArray(body.items) ? (body.items as OrderLineInput[]) : [];
-
-    if (!lines.length) {
-      return NextResponse.json({ error: "Add at least one product to the order" }, { status: 400 });
+    // ── Validate ───────────────────────────────────────────────────────────
+    if (!tableId) {
+      return NextResponse.json(
+        { error: "Table selection is required" },
+        { status: 400 }
+      );
     }
 
-    if (!paymentMethod || !["cash", "card", "upi"].includes(paymentMethod)) {
-      return NextResponse.json({ error: "Choose an enabled payment method" }, { status: 400 });
+    if (!items || items.length === 0) {
+      return NextResponse.json(
+        { error: "At least one item is required" },
+        { status: 400 }
+      );
     }
 
-    const productIds = lines.map((line) => line.productId);
+    // ── Check table exists and is free ─────────────────────────────────────
+    const table = await prisma.table.findUnique({
+      where: { id: tableId },
+      include: {
+        orders: {
+          where: { status: "DRAFT" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!table) {
+      return NextResponse.json(
+        { error: "Table not found" },
+        { status: 404 }
+      );
+    }
+
+    if (table.orders.length > 0) {
+      return NextResponse.json(
+        { error: `Table ${table.label} already has an active order` },
+        { status: 409 }
+      );
+    }
+
+    // ── Fetch products ─────────────────────────────────────────────────────
+    const productIds = items.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
     });
 
-    const orderItems = lines.map((line) => {
-      const product = products.find((item) => item.id === line.productId);
-      const quantity = Number(line.quantity || 0);
+    if (products.length !== productIds.length) {
+      return NextResponse.json(
+        { error: "One or more products not found" },
+        { status: 404 }
+      );
+    }
 
-      if (!product || quantity <= 0) {
-        throw new Error("Invalid product selection");
-      }
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    // ── Calculate totals ───────────────────────────────────────────────────
+    let subtotal = 0;
+    let taxAmount = 0;
+
+    const orderItems = items.map((item) => {
+      const product = productMap.get(item.productId)!;
+      const lineTotal = product.price * item.quantity;
+      const lineTax = (lineTotal * product.tax) / 100;
+
+      subtotal += lineTotal;
+      taxAmount += lineTax;
 
       return {
-        productId: product.id,
-        quantity,
+        productId: item.productId,
+        quantity: item.quantity,
         unitPrice: product.price,
-        lineTotal: product.price * quantity,
-        taxAmount: (product.price * quantity * product.tax) / 100,
+        lineTotal,
       };
     });
 
-    const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const taxAmount = orderItems.reduce((sum, item) => sum + item.taxAmount, 0);
-    const safeDiscount = Math.max(0, Number.isNaN(discount) ? 0 : discount);
-    const total = Math.max(0, subtotal + taxAmount - safeDiscount);
-    const orderNumber = `ORD-${Date.now()}`;
+    const discountAmount = Math.max(0, discount || 0);
+    const total = Math.max(0, subtotal + taxAmount - discountAmount);
 
-    const order = await prisma.order.create({
-      data: {
-        orderNumber,
-        employeeId: user.id,
-        customerId,
-        subtotal,
-        taxAmount,
-        discount: safeDiscount,
-        total,
-        paymentMethod,
-        status: "PAID",
-        items: {
-          create: orderItems.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-          })),
+    // ── Generate order number ──────────────────────────────────────────────
+    const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random()
+      .toString(36)
+      .slice(2, 5)
+      .toUpperCase()}`;
+
+    // ── Create order + mark table OCCUPIED in one transaction ──────────────
+    const order = await prisma.$transaction(async (tx) => {
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          employeeId: currentUser.id,
+          customerId: customerId || null,
+          tableId,
+          subtotal,
+          taxAmount,
+          discount: discountAmount,
+          total,
+          status: "DRAFT",
+          paymentMethod,
+          items: {
+            create: orderItems,
+          },
         },
-      },
-      include: {
-        customer: true,
-        employee: { select: { id: true, name: true, email: true } },
-        items: { include: { product: { include: { category: true } } } },
-      },
+        include: {
+          customer: true,
+          employee: {
+            select: { name: true, email: true },
+          },
+          table: {
+            select: { id: true, label: true },
+          },
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      await tx.table.update({
+        where: { id: tableId },
+        data: { status: "OCCUPIED" },
+      });
+
+      return newOrder;
     });
 
     return NextResponse.json({ order }, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unable to create order";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    console.error("[POST /api/pos/orders]", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Order creation failed",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const tableId = searchParams.get("tableId");
+    const status = searchParams.get("status");
+
+    const orders = await prisma.order.findMany({
+      where: {
+        ...(tableId && { tableId }),
+        ...(status && {
+          status: status as "DRAFT" | "PAID" | "CANCELLED" | "COMPLETED",
+        }),
+      },
+      include: {
+        customer: true,
+        employee: {
+          select: { name: true, email: true },
+        },
+        table: {
+          select: { id: true, label: true },
+        },
+        items: {
+          include: { product: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ orders });
+  } catch (error) {
+    console.error("[GET /api/pos/orders]", error);
+    return NextResponse.json(
+      { error: "Failed to fetch orders" },
+      { status: 500 }
+    );
   }
 }
