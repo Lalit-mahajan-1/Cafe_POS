@@ -16,7 +16,7 @@ export const authService = {
         ...data,
         password: hashedPassword,
         provider: "credentials",
-        role: "ADMIN", // First-time signup = ADMIN (per spec)
+        role: "Customer", // First-time signup = ADMIN (per spec)
       },
       select: { id: true, name: true, email: true, role: true },
     });
