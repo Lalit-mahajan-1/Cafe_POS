@@ -30,8 +30,12 @@ export default function LoginPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Login failed");
-      router.push("/dashboard");
+      if (!res.ok)
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Login failed",
+        );
+      const dest = data.user.role === "ADMIN" ? "/admin" : "/pos";
+      router.push(dest);
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -86,7 +90,10 @@ export default function LoginPage() {
 
       {error && <p className="mt-4 text-red-600">{error}</p>}
       <p className="mt-4 text-sm">
-        No account? <Link href="/register" className="text-blue-600">Register</Link>
+        No account?{" "}
+        <Link href="/register" className="text-blue-600">
+          Register
+        </Link>
       </p>
     </main>
   );

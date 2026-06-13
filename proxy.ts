@@ -1,33 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyTokenEdge } from "@/lib/auth/jwt-edge";
 
-// Routes that require login
-const protectedRoutes = ["/dashboard", "/profile"];
+const ADMIN_ROUTES = ["/admin"];
+const POS_ROUTES = ["/pos", "/kds"];
+const AUTH_ROUTES = ["/login", "/register"];
+const PUBLIC_ROUTES = ["/", "/about"];
 
-// Routes blocked when already logged in
-const authRoutes = ["/login", "/register"];
-
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const token = req.cookies.get("auth-token")?.value;
   const { pathname } = req.nextUrl;
 
-  const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+  const payload = token ? await verifyTokenEdge(token) : null;
+  const isLoggedIn = payload !== null;
+  const userRole = payload?.role;
 
-  // Not logged in trying to access protected route → redirect to login
-  if (isProtected && !token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  const isAdminRoute = ADMIN_ROUTES.some((r) => pathname.startsWith(r));
+  const isPosRoute = POS_ROUTES.some((r) => pathname.startsWith(r));
+  const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
+
+  // ─── Block unauthenticated users from protected routes ────────
+  if ((isAdminRoute || isPosRoute) && !isLoggedIn) {
+    const response = NextResponse.redirect(new URL("/login", req.url));
+    if (token) response.cookies.delete("auth-token");
+    return response;
   }
 
-  // Already logged in trying to access login/register → redirect to dashboard
-  if (isAuthRoute && token) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  // ─── Block EMPLOYEE from admin routes ─────────────────────────
+  if (isAdminRoute && userRole !== "ADMIN") {
+    return NextResponse.redirect(new URL("/pos", req.url));
+  }
+
+  // ─── Logged-in users redirected from /login or /register ──────
+  if (isAuthRoute && isLoggedIn) {
+    const dest = userRole === "ADMIN" ? "/admin" : "/pos";
+    return NextResponse.redirect(new URL(dest, req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/profile/:path*", "/login", "/register"],
+  matcher: ["/admin/:path*", "/pos/:path*", "/kds/:path*", "/login", "/register"],
 };
-
-

@@ -12,8 +12,27 @@ export const getCurrentUser = async () => {
 
   const user = await prisma.user.findUnique({
     where: { id: payload.userId },
-    select: { id: true, name: true, email: true, createdAt: true, avatar: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      archived: true,
+      avatar: true,
+      createdAt: true,
+    },
   });
 
-  return user; // returns null if user deleted, that's fine
+  // Block archived users
+  if (!user || user.archived) return null;
+
+  return user;
+};
+
+// Helper: require specific role
+export const requireRole = async (allowedRoles: ("ADMIN" | "EMPLOYEE")[]) => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("UNAUTHORIZED");
+  if (!allowedRoles.includes(user.role)) throw new Error("FORBIDDEN");
+  return user;
 };

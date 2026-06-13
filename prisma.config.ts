@@ -1,4 +1,4 @@
-import "dotenv/config";   // ← ADD THIS LINE AT TOP
+import "dotenv/config";
 import path from "node:path";
 import type { PrismaConfig } from "prisma";
 

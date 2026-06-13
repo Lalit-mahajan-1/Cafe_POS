@@ -23,7 +23,7 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Registration failed");
-      router.push("/dashboard");
+      router.push("/admin");
     } catch (err: any) {
       setError(err.message);
     } finally {

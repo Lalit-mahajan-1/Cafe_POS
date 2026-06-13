@@ -7,33 +7,89 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
-model Seat {
-  id        String    @id @default(cuid())
-  number    String    @unique          // "A1", "A2", etc.
-  isBooked  Boolean   @default(false)
-  booking   Booking?
-  createdAt DateTime  @default(now())
+
+enum Role {
+  ADMIN
+  EMPLOYEE
 }
 
-model Booking {
-  id        String   @id @default(cuid())
-  seatId    String   @unique
-  userId    String
-  seat      Seat     @relation(fields: [seatId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
+enum OrderStatus {
+  DRAFT
+  PAID
+  CANCELLED
 }
 
 model User {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  email     String    @unique
+  email     String   @unique
   password  String?
-  googleId  String?   @unique
+  googleId  String?  @unique
   avatar    String?
-  provider  String    @default("credentials")
-  score     Int       @default(0)             
-  bookings  Booking[]
+  provider  String   @default("credentials")
+  role      Role     @default(EMPLOYEE)
+  archived  Boolean  @default(false)
+  orders    Order[]  // Orders created by this employee
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String    @default("#3b82f6") // hex color
+  products  Product[]
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  price       Float
+  unit        String      @default("piece") // piece, kg, litre
+  tax         Float       @default(0)        // percentage e.g. 5 = 5%
+  description String?
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique
+  employeeId   String
+  employee     User        @relation(fields: [employeeId], references: [id])
+  customerId   String?
+  customer     Customer?   @relation(fields: [customerId], references: [id])
+  items        OrderItem[]
+  subtotal     Float
+  taxAmount    Float       @default(0)
+  discount     Float       @default(0)
+  total        Float
+  status       OrderStatus @default(DRAFT)
+  paymentMethod String?     // "cash", "card", "upi"
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Float
+  lineTotal Float
 }

@@ -12,35 +12,47 @@ export const authService = {
     const hashedPassword = await hashPassword(data.password);
 
     const user = await prisma.user.create({
-      data: { ...data, password: hashedPassword, provider: "credentials" },
-      select: { id: true, name: true, email: true },
+      data: {
+        ...data,
+        password: hashedPassword,
+        provider: "credentials",
+        role: "ADMIN", // First-time signup = ADMIN (per spec)
+      },
+      select: { id: true, name: true, email: true, role: true },
     });
 
-    const token = signToken({ userId: user.id, email: user.email });
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
     return { user, token };
   },
 
   async login(data: LoginInput) {
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user || !user.password) throw new Error("Invalid credentials");
+    if (user.archived) throw new Error("Account is archived. Contact admin.");
 
     const isValid = await verifyPassword(data.password, user.password);
     if (!isValid) throw new Error("Invalid credentials");
 
-    const token = signToken({ userId: user.id, email: user.email });
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
     return {
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
       token,
     };
   },
 
-  // ─── NEW ────────────────────────────────────────────────────
   async loginWithGoogle(googleUser: GoogleUserInfo) {
-    // Try to find user by googleId first, then by email
     let user = await prisma.user.findUnique({ where: { googleId: googleUser.id } });
 
     if (!user) {
-      // Maybe they registered with email before — link the accounts
       const existingByEmail = await prisma.user.findUnique({
         where: { email: googleUser.email },
       });
@@ -48,13 +60,9 @@ export const authService = {
       if (existingByEmail) {
         user = await prisma.user.update({
           where: { email: googleUser.email },
-          data: {
-            googleId: googleUser.id,
-            avatar: googleUser.picture,
-          },
+          data: { googleId: googleUser.id, avatar: googleUser.picture },
         });
       } else {
-        // Brand new user — create account
         user = await prisma.user.create({
           data: {
             email: googleUser.email,
@@ -62,14 +70,22 @@ export const authService = {
             googleId: googleUser.id,
             avatar: googleUser.picture,
             provider: "google",
+            role: "ADMIN", // First Google login = ADMIN
           },
         });
       }
     }
 
-    const token = signToken({ userId: user.id, email: user.email });
+    if (user.archived) throw new Error("Account is archived");
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
     return {
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
       token,
     };
   },
