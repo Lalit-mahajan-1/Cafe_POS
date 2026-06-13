@@ -34,6 +34,7 @@ function RegisterForm() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -41,7 +42,9 @@ function RegisterForm() {
         throw new Error(
           typeof data.error === "string" ? data.error : "Registration failed"
         );
-      router.push("/admin");
+      const dest = data.user?.role === "ADMIN" ? "/admin" : "/dashboard";
+      router.replace(dest);
+      router.refresh();
     } catch (err: any) {
       setError(err.message);
     } finally {
