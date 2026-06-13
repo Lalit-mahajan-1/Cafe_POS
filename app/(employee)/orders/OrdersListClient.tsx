@@ -133,9 +133,9 @@ export default function OrdersListClient({
   };
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 print:p-0 print:m-0 print:gap-0 print:max-w-none print:w-full">
       {/* Header */}
-      <header className="rounded-lg border border-[#705C53] bg-[#0E1111] p-5 shadow-sm">
+      <header className="rounded-lg border border-[#705C53] bg-[#0E1111] p-5 shadow-sm print:hidden">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#C86446]">
@@ -174,7 +174,7 @@ export default function OrdersListClient({
 
       {/* Orders List */}
       {orders.length === 0 ? (
-        <section className="grid min-h-[300px] place-items-center rounded-lg border border-[#705C53] bg-[#0E1111] p-8 text-center">
+        <section className="grid min-h-[300px] place-items-center rounded-lg border border-[#705C53] bg-[#0E1111] p-8 text-center print:hidden">
           <div>
             <ReceiptText className="mx-auto size-12 text-[#C86446]" />
             <h2 className="mt-4 text-2xl font-semibold text-[#F3EFE8]">No orders found</h2>
@@ -184,7 +184,7 @@ export default function OrdersListClient({
           </div>
         </section>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-8 print:hidden">
           {Object.entries(groupedOrders).map(([date, dateOrders]) => (
             <section key={date} className="space-y-3">
               {/* Date Header */}
@@ -269,48 +269,15 @@ export default function OrdersListClient({
 
       {/* Invoice Receipt Dialog */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-all duration-300 no-print-backdrop">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-all duration-300 print:bg-white print:relative print:block print:p-0 print:z-0 print:inset-auto">
           <section
             id="print-receipt-modal"
-            className="relative w-full max-w-xl rounded-xl bg-[#FDFBF7] border border-[#705C53] p-6 text-[#000505] shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200"
+            className="relative w-full max-w-xl rounded-xl bg-[#FDFBF7] border border-[#705C53] p-6 text-[#000505] shadow-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200 print:border-none print:shadow-none print:max-h-none print:p-0 print:m-0 print:w-full print:bg-white print:text-black print:overflow-visible"
           >
-            <style>{`
-              @media print {
-                body {
-                  background: white !important;
-                  color: black !important;
-                }
-                body * {
-                  visibility: hidden;
-                }
-                #print-receipt-modal, #print-receipt-modal * {
-                  visibility: visible;
-                }
-                #print-receipt-modal {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  max-width: 100%;
-                  border: none !important;
-                  box-shadow: none !important;
-                  background: white !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                }
-                .no-print {
-                  display: none !important;
-                  visibility: hidden !important;
-                }
-              }
-            `}</style>
-
             {/* Close Button */}
             <button
               onClick={() => setSelectedOrder(null)}
-              className="absolute top-4 right-4 rounded-md p-1.5 text-[#705C53] hover:bg-[#F3EFE8] transition cursor-pointer no-print"
+              className="absolute top-4 right-4 rounded-md p-1.5 text-[#705C53] hover:bg-[#F3EFE8] transition cursor-pointer print:hidden"
               aria-label="Close invoice"
             >
               <X className="size-5" />
@@ -318,7 +285,7 @@ export default function OrdersListClient({
 
             {/* Receipt Header */}
             <div className="border-b border-dashed border-[#705C53]/40 pb-5 text-center">
-              <div className="inline-flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <div className="inline-flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 print:hidden">
                 <CheckCircle2 className="size-7" />
               </div>
               <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#000505]">RECEIPT / INVOICE</h2>
@@ -414,7 +381,7 @@ export default function OrdersListClient({
             </div>
 
             {/* Dialog Actions */}
-            <div className="mt-6 flex gap-3 no-print">
+            <div className="mt-6 flex gap-3 print:hidden">
               <button
                 onClick={() => window.print()}
                 className="w-full flex items-center justify-center gap-2 rounded-md border border-[#705C53] hover:bg-[#F3EFE8] px-4 py-3 text-sm font-semibold text-[#000505] transition cursor-pointer"

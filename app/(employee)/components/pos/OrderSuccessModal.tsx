@@ -20,8 +20,8 @@ export default function OrderSuccessModal({
   if (!order) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4">
-      <section className="w-full max-w-2xl rounded-lg bg-[#FDFBF7] p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 print:relative print:block print:bg-white print:p-0 print:inset-auto">
+      <section className="w-full max-w-2xl rounded-lg bg-[#FDFBF7] p-6 shadow-xl max-h-[90vh] overflow-y-auto print:border-none print:shadow-none print:max-h-none print:p-0 print:m-0 print:w-full print:bg-white print:text-black print:overflow-visible">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-[#C86446]">
@@ -37,7 +37,7 @@ export default function OrderSuccessModal({
           </div>
           <button
             onClick={onNewOrder}
-            className="p-2 hover:bg-[#F3EFE8] rounded-lg"
+            className="p-2 hover:bg-[#F3EFE8] rounded-lg print:hidden"
           >
             <X className="size-5" />
           </button>
@@ -81,7 +81,7 @@ export default function OrderSuccessModal({
         </div>
 
         {/* Actions */}
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5 flex gap-3 print:hidden">
           <button
             onClick={() => window.print()}
             className="flex-1 flex items-center justify-center gap-2 rounded-md border border-[#E6DDD1] px-4 py-2.5 text-sm font-semibold text-[#705C53] hover:bg-[#F3EFE8] transition"
@@ -106,7 +106,7 @@ export default function OrderSuccessModal({
         {order.status === "PAID" && (
           <button
             onClick={onNewOrder}
-            className="mt-3 w-full rounded-md bg-[#C86446] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B55A3E] transition"
+            className="mt-3 w-full rounded-md bg-[#C86446] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B55A3E] transition print:hidden"
           >
             Start New Order →
           </button>

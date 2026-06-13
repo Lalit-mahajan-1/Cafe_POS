@@ -73,14 +73,13 @@ export default function TableSelector({
               />
               Refresh
             </button>
-            {canClose && (
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-[#F3EFE8] rounded-lg transition"
-              >
-                <X className="size-5" />
-              </button>
-            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-[#F3EFE8] rounded-lg transition"
+              aria-label="Close table selector"
+            >
+              <X className="size-5" />
+            </button>
           </div>
         </div>
 

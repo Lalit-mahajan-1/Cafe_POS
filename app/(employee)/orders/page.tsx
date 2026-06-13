@@ -42,7 +42,7 @@ export default async function EmployeeOrdersPage() {
   return (
     <>
       <EmployeeSidebar userName={user.name} userEmail={user.email} userAvatar={user.avatar} />
-      <main className="min-h-screen lg:ml-72 bg-[#F3EFE8] text-[#000505]">
+      <main className="min-h-screen lg:ml-72 bg-[#F3EFE8] text-[#000505] print:ml-0 print:min-h-0 print:bg-white">
         <OrdersListClient initialOrders={orders as any} employeeName={user.name} />
       </main>
     </>
