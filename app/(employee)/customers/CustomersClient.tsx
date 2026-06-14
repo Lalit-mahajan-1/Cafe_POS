@@ -76,13 +76,15 @@ const STATUS_STYLES: Record<string, string> = {
 
 // ── Edit Dialog ───────────────────────────────────────────────────────────
 
-type EditDialogProps = {
+function EditDialog({
+  customer,
+  onClose,
+  onSaved,
+}: {
   customer: Customer;
   onClose: () => void;
   onSaved: (updated: Customer) => void;
-};
-
-function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
+}) {
   const [form, setForm] = useState<EditForm>({
     name:  customer.name,
     phone: customer.phone  ?? "",
@@ -92,13 +94,11 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
   const [error,   setError]   = useState("");
   const firstInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus first input on mount
   useEffect(() => {
     const timer = setTimeout(() => firstInputRef.current?.focus(), 80);
     return () => clearTimeout(timer);
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -125,8 +125,9 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
       const res = await fetch(`/api/pos/customers/${customer.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, email }),
+        body: JSON.stringify({ name, phone: phone || null, email: email || null }),
       });
+
       const data = await res.json();
 
       if (!res.ok) {
@@ -136,7 +137,7 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
 
       onSaved(data.customer as Customer);
     } catch {
-      setError("Network error. Please try again.");
+      setError("Network error. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -172,7 +173,7 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
             <p className="mt-1 text-sm text-[#705C53]">
               ID:{" "}
               <span className="font-mono text-xs text-[#1F1815]">
-                {customer.id}
+                {customer.id.slice(0, 16)}…
               </span>
             </p>
           </div>
@@ -188,7 +189,6 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
           <div>
             <label
               htmlFor="edit-name"
@@ -212,7 +212,6 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
             </div>
           </div>
 
-          {/* Phone */}
           <div>
             <label
               htmlFor="edit-phone"
@@ -236,7 +235,6 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
             </div>
           </div>
 
-          {/* Email */}
           <div>
             <label
               htmlFor="edit-email"
@@ -259,14 +257,12 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
             </div>
           </div>
 
-          {/* Error */}
           {error && (
             <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
               {error}
             </p>
           )}
 
-          {/* Actions */}
           <div className="flex gap-3 pt-1">
             <button
               type="button"
@@ -292,20 +288,20 @@ function EditDialog({ customer, onClose, onSaved }: EditDialogProps) {
 
 // ── Customer Row ──────────────────────────────────────────────────────────
 
-type RowProps = {
+function CustomerRow({
+  customer,
+  onEdit,
+}: {
   customer: Customer;
   onEdit: (customer: Customer) => void;
-};
-
-function CustomerRow({ customer, onEdit }: RowProps) {
-  const lastOrder = customer.orders[0];
+}) {
+  const lastOrder = customer.orders?.[0];
 
   return (
     <tr
       className="group cursor-pointer border-b border-[#F0EAE2] transition hover:bg-[#FAF7F2]"
       onClick={() => onEdit(customer)}
     >
-      {/* Name / ID */}
       <td className="py-4 pl-6 pr-4">
         <div className="flex items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F3EFE8] text-[#C86446]">
@@ -322,7 +318,6 @@ function CustomerRow({ customer, onEdit }: RowProps) {
         </div>
       </td>
 
-      {/* Phone */}
       <td className="px-4 py-4">
         <div className="flex items-center gap-2 text-sm text-[#705C53]">
           <Phone className="size-3.5 shrink-0 text-[#C9B8A5]" />
@@ -332,7 +327,6 @@ function CustomerRow({ customer, onEdit }: RowProps) {
         </div>
       </td>
 
-      {/* Email */}
       <td className="hidden px-4 py-4 lg:table-cell">
         <div className="flex items-center gap-2 text-sm text-[#705C53]">
           <Mail className="size-3.5 shrink-0 text-[#C9B8A5]" />
@@ -342,7 +336,6 @@ function CustomerRow({ customer, onEdit }: RowProps) {
         </div>
       </td>
 
-      {/* Orders */}
       <td className="hidden px-4 py-4 sm:table-cell">
         <div className="flex items-center gap-2">
           <ShoppingBag className="size-3.5 shrink-0 text-[#C9B8A5]" />
@@ -355,14 +348,13 @@ function CustomerRow({ customer, onEdit }: RowProps) {
         </div>
       </td>
 
-      {/* Last Order */}
       <td className="hidden px-4 py-4 xl:table-cell">
         {lastOrder ? (
           <div>
             <p className="text-sm font-medium text-[#1F1815]">
               {formatCurrency(lastOrder.total)}
             </p>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1">
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                   STATUS_STYLES[lastOrder.status] ??
@@ -378,14 +370,12 @@ function CustomerRow({ customer, onEdit }: RowProps) {
         )}
       </td>
 
-      {/* Since */}
       <td className="hidden px-4 py-4 md:table-cell">
         <span className="text-sm text-[#705C53]">
           {formatDate(customer.createdAt)}
         </span>
       </td>
 
-      {/* Edit button */}
       <td className="py-4 pl-4 pr-6">
         <button
           type="button"
@@ -412,7 +402,11 @@ export default function CustomersClient({ initialCustomers }: Props) {
   const [toast,     setToast]     = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Search filter ──────────────────────────────────────────────────────
+  // Update state if props change (e.g. after revalidation)
+  useEffect(() => {
+    setCustomers(initialCustomers);
+  }, [initialCustomers]);
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return customers;
@@ -424,21 +418,18 @@ export default function CustomersClient({ initialCustomers }: Props) {
     );
   }, [customers, query]);
 
-  // ── Stats ──────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const withPhone = customers.filter((c) => c.phone).length;
+    const withPhone  = customers.filter((c) => c.phone).length;
     const withOrders = customers.filter((c) => c._count.orders > 0).length;
     return { total: customers.length, withPhone, withOrders };
   }, [customers]);
 
-  // ── Toast helper ───────────────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // ── Save handler ───────────────────────────────────────────────────────
   const handleSaved = useCallback(
     (updated: Customer) => {
       setCustomers((prev) =>
@@ -450,7 +441,6 @@ export default function CustomersClient({ initialCustomers }: Props) {
     [showToast]
   );
 
-  // ── Cleanup ────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -461,7 +451,7 @@ export default function CustomersClient({ initialCustomers }: Props) {
     <div className="min-h-screen bg-[#F3EFE8] text-[#000505]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
-        {/* ── Page header ─────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-[#1F1815]">Customers</h1>
@@ -470,7 +460,6 @@ export default function CustomersClient({ initialCustomers }: Props) {
             </p>
           </div>
 
-          {/* Stats strip */}
           <div className="flex flex-wrap gap-3">
             <StatBadge label="Total"       value={stats.total}      />
             <StatBadge label="With phone"  value={stats.withPhone}  />
@@ -478,7 +467,7 @@ export default function CustomersClient({ initialCustomers }: Props) {
           </div>
         </div>
 
-        {/* ── Search bar ──────────────────────────────────────────────── */}
+        {/* Search */}
         <div className="mb-6 flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#705C53]" />
@@ -502,7 +491,7 @@ export default function CustomersClient({ initialCustomers }: Props) {
           )}
         </div>
 
-        {/* ── Table card ──────────────────────────────────────────────── */}
+        {/* Table */}
         <div className="overflow-hidden rounded-2xl border border-[#E6DDD1] bg-[#FDFBF7] shadow-sm">
           {filtered.length > 0 ? (
             <div className="overflow-x-auto">
@@ -527,12 +516,9 @@ export default function CustomersClient({ initialCustomers }: Props) {
                     <th className="hidden px-4 py-4 text-left text-xs font-bold uppercase tracking-widest text-[#705C53] md:table-cell">
                       Since
                     </th>
-                    <th className="py-4 pl-4 pr-6 text-right text-xs font-bold uppercase tracking-widest text-[#705C53]">
-                      {/* edit */}
-                    </th>
+                    <th className="py-4 pl-4 pr-6" />
                   </tr>
                 </thead>
-
                 <tbody>
                   {filtered.map((customer) => (
                     <CustomerRow
@@ -545,14 +531,10 @@ export default function CustomersClient({ initialCustomers }: Props) {
               </table>
             </div>
           ) : (
-            <EmptyState
-              hasQuery={Boolean(query)}
-              onClear={() => setQuery("")}
-            />
+            <EmptyState hasQuery={Boolean(query)} onClear={() => setQuery("")} />
           )}
         </div>
 
-        {/* Row count */}
         {filtered.length > 0 && (
           <p className="mt-4 text-xs text-[#A89080]">
             Showing {filtered.length} of {customers.length} customer
@@ -562,7 +544,6 @@ export default function CustomersClient({ initialCustomers }: Props) {
         )}
       </div>
 
-      {/* ── Edit dialog ───────────────────────────────────────────────── */}
       {editing && (
         <EditDialog
           customer={editing}
@@ -571,7 +552,6 @@ export default function CustomersClient({ initialCustomers }: Props) {
         />
       )}
 
-      {/* ── Toast ─────────────────────────────────────────────────────── */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#1F1815] px-5 py-3 text-sm font-medium text-[#FDFBF7] shadow-lg">
           {toast}

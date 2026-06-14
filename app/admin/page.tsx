@@ -765,7 +765,7 @@ export default function AdminDashboard() {
         <RankingTable
           title="Top Product"
           rows={report?.topProducts ?? []}
-          columns={["product", "qty", "revenue"]}
+          columns={["Product", "qty", "revenue"]}
         />
         <RankingTable
           title="Top Category"

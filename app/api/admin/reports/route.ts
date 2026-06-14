@@ -10,6 +10,7 @@ type ReportOrderItem = {
   product: {
     id: string;
     name: string;
+    image: string | null; // ← added
     category: {
       id: string;
       name: string;
@@ -158,69 +159,71 @@ export async function GET(req: NextRequest) {
       products,
       categories,
     ] = await Promise.all([
-        prisma.order.findMany({
-          where: orderWhere,
-          orderBy: { total: "desc" },
-          include: {
-            employee: { select: { id: true, name: true } },
-            customer: { select: { name: true } },
-            items: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    category: { select: { id: true, name: true, color: true } },
-                  },
+      prisma.order.findMany({
+        where: orderWhere,
+        orderBy: { total: "desc" },
+        include: {
+          employee: { select: { id: true, name: true } },
+          customer: { select: { name: true } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true, // ← added
+                  category: { select: { id: true, name: true, color: true } },
                 },
               },
             },
           },
-        }),
-        prisma.order.findMany({
-          where: paidOrderWhere,
-          orderBy: { createdAt: "desc" },
-          include: {
-            employee: { select: { id: true, name: true } },
-            customer: { select: { name: true } },
-            items: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    category: { select: { id: true, name: true, color: true } },
-                  },
+        },
+      }),
+      prisma.order.findMany({
+        where: paidOrderWhere,
+        orderBy: { createdAt: "desc" },
+        include: {
+          employee: { select: { id: true, name: true } },
+          customer: { select: { name: true } },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true, // ← added
+                  category: { select: { id: true, name: true, color: true } },
                 },
               },
             },
           },
-        }),
-        prisma.order.findMany({
-          where: previousOrderWhere,
-          select: { total: true },
-        }),
-        prisma.order.findMany({
-          where: previousPaidOrderWhere,
-          select: { total: true },
-        }),
-        prisma.user.findMany({
-          where: { archived: false },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        }),
-        prisma.product.findMany({
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        }),
-        prisma.category.findMany({
-          select: { id: true, name: true, color: true },
-          orderBy: { name: "asc" },
-        }),
-      ]);
+        },
+      }),
+      prisma.order.findMany({
+        where: previousOrderWhere,
+        select: { total: true },
+      }),
+      prisma.order.findMany({
+        where: previousPaidOrderWhere,
+        select: { total: true },
+      }),
+      prisma.user.findMany({
+        where: { archived: false },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.product.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.category.findMany({
+        select: { id: true, name: true, color: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
-    const typedOrders = orders as ReportOrder[];
-    const typedPaidOrders = paidOrders as ReportOrder[];
+    const typedOrders = orders as unknown as ReportOrder[];
+    const typedPaidOrders = paidOrders as unknown as ReportOrder[];
     const revenue = typedPaidOrders.reduce((sum, order) => sum + order.total, 0);
     const previousRevenue = previousPaidOrders.reduce(
       (sum, order) => sum + order.total,
@@ -231,19 +234,14 @@ export async function GET(req: NextRequest) {
       ? previousRevenue / previousPaidOrders.length
       : 0;
 
-    const productMap = new Map<
-      string,
-      { product: string; qty: number; revenue: number }
-    >();
-    const categoryMap = new Map<
-      string,
-      { category: string; revenue: number; color: string }
-    >();
+    const productMap = new Map<string, { product: string; image: string | null; qty: number; revenue: number }>();
+    const categoryMap = new Map<string, { category: string; revenue: number; color: string }>();
 
     for (const order of typedPaidOrders) {
       for (const item of order.items) {
         const product = productMap.get(item.product.id) ?? {
           product: item.product.name,
+          image: item.product.image ?? null, // ← added
           qty: 0,
           revenue: 0,
         };
@@ -313,7 +311,8 @@ export async function GET(req: NextRequest) {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 6)
         .map((product) => ({
-          product: product.product,
+          Product: product.product, // ← capital P
+          image: product.image,      // ← image
           qty: product.qty,
           revenue: money(product.revenue),
         })),
