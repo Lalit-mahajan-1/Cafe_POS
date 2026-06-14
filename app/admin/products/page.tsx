@@ -15,6 +15,7 @@ type Product = {
   category: string;
   price: string;
   tax: number;
+  image: string | null;
 };
 
 export default function ProductsPage() {
@@ -42,11 +43,18 @@ export default function ProductsPage() {
       .then((res) => res.json())
       .then((data) => {
         const mapped: Product[] = (data.products || []).map(
-          (p: { name: string; price: number; tax: number; category: { name: string } }) => ({
+          (p: {
+            name: string;
+            price: number;
+            tax: number;
+            image: string | null;
+            category: { name: string };
+          }) => ({
             name: p.name,
             category: p.category?.name || "",
             price: `₹${Number(p.price).toFixed(2)}`,
             tax: p.tax || 0,
+            image: p.image || null,
           })
         );
         setProducts(mapped);
@@ -74,7 +82,7 @@ export default function ProductsPage() {
     if (!form.name.trim()) errs.name = "Name is required";
     if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
       errs.price = "Price must be a positive number";
-    
+
     if (isNewCategory) {
       if (!form.newCategoryName.trim()) errs.newCategoryName = "Category name is required";
     } else {
@@ -127,6 +135,7 @@ export default function ProductsPage() {
           category: data.product.category?.name || (isNewCategory ? form.newCategoryName : form.categoryId),
           price: `₹${Number(data.product.price).toFixed(2)}`,
           tax: Number(data.product.tax || 0),
+          image: data.product.image || null,
         },
       ]);
       setShowModal(false);
@@ -200,54 +209,63 @@ export default function ProductsPage() {
             <Loader2 className="w-5 h-5 animate-spin text-[#C4B8AC]" />
           </div>
         ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#E8E0D8]">
-              <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
-                Product
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
-                Category
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
-                Price
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
-                Tax
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((product) => (
-              <tr
-                key={product.name + product.category}
-                className="border-b border-[#E8E0D8] last:border-0 hover:bg-[#F3EFE8]/50 transition-colors"
-              >
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#F3EFE8] flex items-center justify-center">
-                      <Coffee className="w-4 h-4 text-[#705C53]" />
-                    </div>
-                    <span className="text-sm font-medium text-[#000505]">
-                      {product.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-sm text-[#705C53]">
-                  {product.category}
-                </td>
-                <td className="px-5 py-3 text-sm font-medium text-[#000505]">
-                  {product.price}
-                </td>
-                <td className="px-5 py-3">
-                  <span className="text-sm text-[#705C53]">
-                    {product.tax}%
-                  </span>
-                </td>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#E8E0D8]">
+                <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
+                  Product
+                </th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
+                  Category
+                </th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
+                  Price
+                </th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-[#C4B8AC] uppercase tracking-[0.08em]">
+                  Tax
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((product) => (
+                <tr
+                  key={product.name + product.category}
+                  className="border-b border-[#E8E0D8] last:border-0 hover:bg-[#F3EFE8]/50 transition-colors"
+                >
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-[#F3EFE8] flex items-center justify-center overflow-hidden shrink-0">
+                        {product.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Coffee className="w-4 h-4 text-[#705C53]" />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-[#000505]">
+                        {product.name}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-sm text-[#705C53]">
+                    {product.category}
+                  </td>
+                  <td className="px-5 py-3 text-sm font-medium text-[#000505]">
+                    {product.price}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="text-sm text-[#705C53]">
+                      {product.tax}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -394,7 +412,7 @@ export default function ProductsPage() {
                     )}
                   </div>
                 )}
-                
+
                 <div className="mt-2 text-right">
                   <button
                     type="button"

@@ -83,6 +83,7 @@ model Product {
   unit        String       @default("piece")
   tax         Float        @default(0)
   description String?
+  image       String?
   categoryId  String
   category    Category     @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
