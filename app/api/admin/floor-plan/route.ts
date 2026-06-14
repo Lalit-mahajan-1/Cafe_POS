@@ -70,11 +70,11 @@ export async function GET() {
       const activeOrder = table.orders[0] ?? null;
       const todayBookings = table.bookings;
 
-      let computedStatus: "AVAILABLE" | "OCCUPIED" | "RESERVED" = "AVAILABLE";
+      let computedStatus: "AVAILABLE" | "OCCUPIED" | "RESERVED" = table.status || "AVAILABLE";
 
       if (activeOrder) {
         computedStatus = "OCCUPIED";
-      } else if (todayBookings.length > 0) {
+      } else if (computedStatus !== "RESERVED" && todayBookings.length > 0) {
         computedStatus = "RESERVED";
       }
 

@@ -84,7 +84,11 @@ export default function POSClient({ user }: { user: UserSummary }) {
 
   useEffect(() => {
     const id = window.setTimeout(() => void loadFloorPlan(), 0);
-    return () => window.clearTimeout(id);
+    const interval = setInterval(() => void loadFloorPlan(), 5000);
+    return () => {
+      window.clearTimeout(id);
+      clearInterval(interval);
+    };
   }, [loadFloorPlan]);
 
   // ── Load products and promotions ─────────────────────────────────────────
