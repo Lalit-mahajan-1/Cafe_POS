@@ -424,17 +424,16 @@ export default function KitchenDisplayClient({
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <strong>{formatMoney(order.total)}</strong>
+                  <div>
+                    <strong className="text-lg">{formatMoney(order.total)}</strong>
+                    {order.discount > 0 && (
+                      <p className="text-xs font-semibold text-emerald-600 mt-0.5">
+                        {order.coupon?.code ? `${order.coupon.code} applied` : "Discount applied"} (-{formatMoney(order.discount)})
+                      </p>
+                    )}
+                  </div>
                   <div className="flex gap-2">
-                    {order.status === "DRAFT" ? (
-                      <button
-                        onClick={() => handleOpenPayModal(order)}
-                        className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] shadow-sm hover:shadow-md cursor-pointer"
-                      >
-                        <ReceiptText className="size-4" aria-hidden="true" />
-                        Pay
-                      </button>
-                    ) : (
+                    {order.status === "DRAFT" && (
                       <>
                         <button
                           onClick={() => cancelOrder(order.id)}
@@ -445,14 +444,23 @@ export default function KitchenDisplayClient({
                           {isCancelling ? "Cancelling..." : "Cancel"}
                         </button>
                         <button
-                          onClick={() => completeOrder(order.id)}
-                          disabled={isCompleting || isCancelling || isCompleted || isCancelled}
-                          className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60 cursor-pointer"
+                          onClick={() => handleOpenPayModal(order)}
+                          className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] shadow-sm hover:shadow-md cursor-pointer"
                         >
-                          <Check className="size-4" aria-hidden="true" />
-                          {isCompleting ? "Updating..." : "Done"}
+                          <ReceiptText className="size-4" aria-hidden="true" />
+                          Pay
                         </button>
                       </>
+                    )}
+                    {order.status !== "DRAFT" && (
+                      <button
+                        onClick={() => completeOrder(order.id)}
+                        disabled={isCompleting || isCancelling || isCompleted || isCancelled}
+                        className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60 cursor-pointer"
+                      >
+                        <Check className="size-4" aria-hidden="true" />
+                        {isCompleting ? "Updating..." : "Done"}
+                      </button>
                     )}
                   </div>
                 </div>

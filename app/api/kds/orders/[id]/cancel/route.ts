@@ -12,11 +12,9 @@ export async function PATCH(
 
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
-        where: {
-          id,
-          employeeId: user.id,
-          status: "PAID",
-        },
+        where: user.role === "ADMIN" 
+          ? { id, status: { in: ["DRAFT", "PAID"] } }
+          : { id, employeeId: user.id, status: { in: ["DRAFT", "PAID"] } },
       });
 
       if (!order) return null;
