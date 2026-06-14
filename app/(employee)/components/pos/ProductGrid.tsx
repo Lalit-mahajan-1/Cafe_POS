@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Edit3, Plus, Search, Trash2 } from "lucide-react";
+import { Coffee, Edit3, Plus, Search, Trash2 } from "lucide-react";
 import type { Product, Category, FloorTable } from "./pos-types";
 import { formatMoney } from "./pos-constants";
 
@@ -127,23 +127,37 @@ export default function ProductGrid({
             className="rounded-lg border border-[#E6DDD1] bg-[#FDFBF7] p-4"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <span
-                  className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold text-white mb-2"
-                  style={{ backgroundColor: product.category.color }}
-                >
-                  {product.category.name}
-                </span>
-                <h3 className="font-semibold truncate">{product.name}</h3>
-                <p className="mt-1 text-xs text-[#705C53] line-clamp-2">
-                  {product.description || "No description"}
-                </p>
-                <p className="mt-2 text-sm font-bold text-[#C86446]">
-                  {formatMoney(product.price)}{" "}
-                  <span className="text-xs font-normal text-[#705C53]">
-                    / {product.unit} · {product.tax}% tax
+              <div className="flex min-w-0 gap-3">
+                <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#F3EFE8] ring-1 ring-[#E6DDD1]">
+                  {product.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Coffee className="size-5 text-[#705C53]" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <span
+                    className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold text-white mb-2"
+                    style={{ backgroundColor: product.category.color }}
+                  >
+                    {product.category.name}
                   </span>
-                </p>
+                  <h3 className="font-semibold truncate">{product.name}</h3>
+                  <p className="mt-1 text-xs text-[#705C53] line-clamp-2">
+                    {product.description || "No description"}
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-[#C86446]">
+                    {formatMoney(product.price)}{" "}
+                    <span className="text-xs font-normal text-[#705C53]">
+                      / {product.unit} · {product.tax}% tax
+                    </span>
+                  </p>
+                </div>
               </div>
               <div className="flex gap-1 shrink-0">
                 <button

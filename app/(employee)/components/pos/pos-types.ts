@@ -8,6 +8,7 @@ export type Product = {
   price: number;
   unit: string;
   tax: number;
+  image?: string | null;
   description: string | null;
   category: Category;
 };
