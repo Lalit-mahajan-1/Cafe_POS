@@ -254,9 +254,8 @@ function MetricCards({ metrics }: { metrics: Metric[] }) {
           </p>
           <p className="mt-3 text-xs text-[#705C53]">
             <span
-              className={`font-semibold ${
-                positiveChange(metric.change) ? "text-green-600" : "text-[#A84C32]"
-              }`}
+              className={`font-semibold ${positiveChange(metric.change) ? "text-green-600" : "text-[#A84C32]"
+                }`}
             >
               {metric.change}
             </span>{" "}
@@ -349,14 +348,14 @@ function SalesChart({ points: salesPoints }: { points: SalesPoint[] }) {
                 {(index === 0 ||
                   index === chartPoints.length - 1 ||
                   index % 2 === 0) && (
-                  <text
-                    x={Math.max(24, x - 18)}
-                    y="222"
-                    className="fill-[#705C53] text-[13px] font-semibold"
-                  >
-                    {point.label}
-                  </text>
-                )}
+                    <text
+                      x={Math.max(24, x - 18)}
+                      y="222"
+                      className="fill-[#705C53] text-[13px] font-semibold"
+                    >
+                      {point.label}
+                    </text>
+                  )}
               </g>
             );
           })}
@@ -427,6 +426,30 @@ function ProductMixChart({ items }: { items: CategoryMixItem[] }) {
       </div>
     </section>
   );
+}
+
+import {
+  Coffee,
+  Cookie,
+  Sandwich,
+  Croissant,
+  Leaf,
+  CakeSlice,
+} from "lucide-react";
+
+// Maps category name -> icon component shown in the "Category" column
+const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  Coffee: Coffee,
+  Tea: Leaf,
+  Desserts: CakeSlice,
+  Pastries: Croissant,
+  Sandwiches: Sandwich,
+  Snacks: Cookie,
+  Beverages: Coffee,
+};
+
+function getCategoryIcon(category: string) {
+  return categoryIcons[category] || Coffee;
 }
 
 function TopOrdersTable({ rows }: { rows: OrderRow[] }) {
@@ -542,14 +565,61 @@ function RankingTable({
                   key={`${title}-${index}`}
                   className="border-b border-[#F0E9E1] last:border-0 odd:bg-[#F3EFE8]/60"
                 >
-                  {columns.map((column) => (
-                    <td
-                      key={column}
-                      className="px-4 py-3 text-sm font-medium text-[#000505]"
-                    >
-                      {row[column]}
-                    </td>
-                  ))}
+                  {columns.map((column) => {
+                    // Product column: show a small square cover thumbnail next to the name
+                    if (column === "Product") {
+                      const image = row.image as string | undefined;
+                      return (
+                        <td
+                          key={column}
+                          className="px-4 py-3 text-sm font-medium text-[#000505]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-[#F3EFE8] flex items-center justify-center overflow-hidden shrink-0">
+                              {image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={image}
+                                  alt={String(row[column])}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Coffee className="w-4 h-4 text-[#705C53]" />
+                              )}
+                            </div>
+                            <span>{row[column]}</span>
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    // Category column: show an icon representing the category
+                    if (column === "Category") {
+                      const Icon = getCategoryIcon(String(row[column]));
+                      return (
+                        <td
+                          key={column}
+                          className="px-4 py-3 text-sm font-medium text-[#000505]"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-[#F3EFE8] flex items-center justify-center shrink-0">
+                              <Icon className="w-3.5 h-3.5 text-[#705C53]" />
+                            </div>
+                            <span>{row[column]}</span>
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    return (
+                      <td
+                        key={column}
+                        className="px-4 py-3 text-sm font-medium text-[#000505]"
+                      >
+                        {row[column]}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             ) : (
@@ -568,7 +638,6 @@ function RankingTable({
     </section>
   );
 }
-
 export default function AdminDashboard() {
   const [filters, setFilters] = useState<Filters>({
     period: "all",
