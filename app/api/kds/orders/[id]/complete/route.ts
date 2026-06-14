@@ -16,12 +16,16 @@ export async function PATCH(
     await ensureCompletedStatusExists();
 
     const result = await prisma.$transaction(async (tx) => {
+      const whereClause: any = { id };
+      if (user.role !== "ADMIN") {
+        whereClause.employeeId = user.id;
+        whereClause.status = "PAID";
+      } else {
+        whereClause.status = { in: ["DRAFT", "PAID"] };
+      }
+
       const order = await tx.order.findFirst({
-        where: {
-          id,
-          employeeId: user.id,
-          status: "PAID",
-        },
+        where: whereClause,
       });
 
       if (!order) return null;
@@ -71,7 +75,7 @@ export async function PATCH(
 
     if (!result) {
       return NextResponse.json(
-        { error: "Order is not active for this employee" },
+        { error: "Order not found or not eligible for completion" },
         { status: 404 },
       );
     }

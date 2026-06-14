@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChefHat, Clock3, Minus, ReceiptText, RotateCcw, X, XCircle } from "lucide-react";
 import CartSidebar from "../pos/CartSidebar";
 import type { CartItem, Totals } from "../pos/pos-types";
