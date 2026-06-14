@@ -6,15 +6,17 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ChefHat,
   Coffee,
+  ContactRound,
+  History,
   LayoutDashboard,
   LogOut,
+  Menu,
   ReceiptText,
   UserCircle,
   Users,
-  Menu,
   X,
-  History,
 } from "lucide-react";
+
 import UserAvatar from "@/components/UserAvatar";
 import { PROFILE_UPDATED_EVENT } from "@/lib/profile-events";
 
@@ -25,12 +27,13 @@ type EmployeeSidebarProps = {
 };
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "POS Terminal", href: "/pos", icon: ReceiptText },
-  { label: "Kitchen Display", href: "/kds", icon: ChefHat },
-  { label: "Table Seats", href: "/book-seat", icon: Users },
-  { label: "Orders History", href: "/orders", icon: History },
-  { label: "Profile", href: "/profile", icon: UserCircle },
+  { label: "Dashboard",      href: "/dashboard",  icon: LayoutDashboard },
+  { label: "POS Terminal",   href: "/pos",        icon: ReceiptText     },
+  { label: "Kitchen Display",href: "/kds",        icon: ChefHat         },
+  { label: "Table Seats",    href: "/book-seat",  icon: Users           },
+  { label: "Customers",      href: "/customers",  icon: ContactRound    },
+  { label: "Orders History", href: "/orders",     icon: History         },
+  { label: "Profile",        href: "/profile",    icon: UserCircle      },
 ];
 
 export default function EmployeeSidebar({
@@ -39,11 +42,12 @@ export default function EmployeeSidebar({
   userAvatar: initialAvatar,
 }: EmployeeSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
-  const [userNameState, setUserNameState] = useState(userName);
-  const [userEmailState, setUserEmailState] = useState(userEmail);
-  const [userAvatar, setUserAvatar] = useState(initialAvatar ?? null);
+  const router   = useRouter();
+
+  const [isOpen,          setIsOpen]          = useState(false);
+  const [userNameState,   setUserNameState]   = useState(userName);
+  const [userEmailState,  setUserEmailState]  = useState(userEmail);
+  const [userAvatar,      setUserAvatar]      = useState(initialAvatar ?? null);
 
   useEffect(() => {
     setUserNameState(userName);
@@ -68,8 +72,7 @@ export default function EmployeeSidebar({
     };
 
     window.addEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
-    return () =>
-      window.removeEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, refreshProfile);
   }, []);
 
   const handleLogout = async () => {
@@ -80,7 +83,7 @@ export default function EmployeeSidebar({
 
   return (
     <>
-      {/* Mobile Header */}
+      {/* ── Mobile header ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 flex items-center justify-between bg-[#000505] px-4 py-3 text-white lg:hidden">
         <div className="flex items-center gap-2">
           <Coffee className="size-5" />
@@ -95,7 +98,7 @@ export default function EmployeeSidebar({
         </button>
       </header>
 
-      {/* Mobile Overlay */}
+      {/* ── Mobile overlay ─────────────────────────────────────────────── */}
       {isOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/50 lg:hidden"
@@ -103,20 +106,17 @@ export default function EmployeeSidebar({
         />
       )}
 
-      {/* Sidebar */}
+      {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <aside
         className={`
           fixed left-0 top-0 z-[60] flex h-screen w-72 flex-col
           bg-[#000505] px-4 py-5 text-[#FDFBF7]
           transform transition-transform duration-300 ease-in-out
-
-          ${isOpen ? "translate-x-0" : "-translate-x-full"
-          }
-
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
         `}
       >
-        {/* Mobile Close Button */}
+        {/* Mobile close */}
         <div className="mb-2 flex justify-end lg:hidden">
           <button
             onClick={() => setIsOpen(false)}
@@ -140,40 +140,38 @@ export default function EmployeeSidebar({
             <span className="block text-lg font-semibold leading-tight">
               Odoo Cafe POS
             </span>
-            <span className="text-sm text-[#F3EFE8]/70">
-              Employee station
-            </span>
+            <span className="text-sm text-[#F3EFE8]/70">Employee station</span>
           </span>
         </Link>
 
         {/* Navigation */}
         <nav
-          className="mt-8 space-y-1"
+          className="mt-8 space-y-1 flex-1 overflow-y-auto"
           aria-label="Employee dashboard navigation"
         >
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
+          {navItems.map(({ label, href, icon: Icon }) => {
+            const isActive = pathname === href;
 
             return (
               <Link
-                key={item.label}
-                href={item.href}
+                key={label}
+                href={href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${isActive
+                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
+                  isActive
                     ? "bg-[#C86446] text-white"
                     : "text-[#F3EFE8]/75 hover:bg-[#705C53]/35 hover:text-white"
-                  }`}
+                }`}
               >
-                <Icon className="size-5" />
-                {item.label}
+                <Icon className="size-5 shrink-0" />
+                {label}
               </Link>
             );
           })}
         </nav>
 
-        {/* User Section */}
-        <div className="mt-auto rounded-lg border border-[#705C53]/60 bg-[#705C53]/20 p-4">
+        {/* User section */}
+        <div className="mt-4 rounded-lg border border-[#705C53]/60 bg-[#705C53]/20 p-4">
           <Link
             href="/profile"
             onClick={() => setIsOpen(false)}

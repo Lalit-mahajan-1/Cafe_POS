@@ -176,8 +176,8 @@ export default function CustomerModal({
             onClick={() => onModeChange("lookup")}
             className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
               mode === "lookup"
-                ? "bg-[#FDFBF7] text-[#1F1815] shadow-sm"
-                : "text-[#705C53] hover:text-[#1F1815]"
+                ? "bg-[#1F1815] text-[#FDFBF7] shadow-sm"
+                : "text-[#1F1815] hover:text-[#705C53]"
             }`}
           >
             Existing
@@ -188,8 +188,8 @@ export default function CustomerModal({
             onClick={() => onModeChange("new")}
             className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
               mode === "new"
-                ? "bg-[#FDFBF7] text-[#1F1815] shadow-sm"
-                : "text-[#705C53] hover:text-[#1F1815]"
+                ? "bg-[#1F1815] text-[#FDFBF7] shadow-sm"
+                : "text-[#1F1815] hover:text-[#705C53]"
             }`}
           >
             New
