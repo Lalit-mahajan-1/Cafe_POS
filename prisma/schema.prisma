@@ -56,6 +56,7 @@ model Product {
   unit        String      @default("piece")
   tax         Float       @default(0)
   description String?
+  image       String?
   categoryId  String
   createdAt   DateTime    @default(now())
   orderItems  OrderItem[]
