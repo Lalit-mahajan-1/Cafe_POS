@@ -115,4 +115,15 @@ export const floorPlanService = {
     if (!json.success) throw new Error(json.message);
     return json;
   },
+
+  async updateTableStatus(tableId: string, status: TableStatus) {
+    const res = await fetch(`${BASE}/table-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tableId, status }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
+    return json.data;
+  },
 };

@@ -58,9 +58,9 @@ export async function GET() {
       const activeOrder = table.orders[0] ?? null;
       const todayBookings = table.bookings;
 
-      let status: "AVAILABLE" | "OCCUPIED" | "RESERVED" = "AVAILABLE";
+      let status: "AVAILABLE" | "OCCUPIED" | "RESERVED" = table.status || "AVAILABLE";
       if (activeOrder) status = "OCCUPIED";
-      else if (todayBookings.length > 0) status = "RESERVED";
+      else if (status !== "RESERVED" && todayBookings.length > 0) status = "RESERVED";
 
       return {
         id: table.id,

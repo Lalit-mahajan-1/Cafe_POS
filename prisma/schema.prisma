@@ -8,6 +8,215 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String?
+  googleId  String?   @unique
+  avatar    String?
+  provider  String    @default("credentials")
+  role      Role      @default(EMPLOYEE)
+  archived  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  orders    Order[]
+  Session   Session[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
+  orders    Order[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String    @default("#3b82f6")
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  price       Float
+  unit        String      @default("piece")
+  tax         Float       @default(0)
+  description String?
+  categoryId  String
+  createdAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+  category    Category    @relation(fields: [categoryId], references: [id])
+  promotions  Promotion[]
+}
+
+model Coupon {
+  id             String       @id @default(cuid())
+  name           String
+  code           String       @unique
+  discountType   DiscountType @default(PERCENTAGE)
+  discountValue  Float
+  minOrderAmount Float?
+  validFrom      DateTime     @default(now())
+  validTill      DateTime?
+  maxUsage       Int?
+  currentUsage   Int          @default(0)
+  isActive       Boolean      @default(true)
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  orders         Order[]
+}
+
+model Promotion {
+  id             String          @id @default(cuid())
+  name           String
+  appliesTo      PromotionTarget @default(ORDER)
+  discountType   DiscountType    @default(PERCENTAGE)
+  discountValue  Float
+  minOrderAmount Float?
+  productId      String?
+  minQuantity    Int?
+  validFrom      DateTime        @default(now())
+  validTill      DateTime?
+  isActive       Boolean         @default(true)
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  orders         Order[]
+  product        Product?        @relation(fields: [productId], references: [id])
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  orderNumber    String      @unique
+  employeeId     String
+  customerId     String?
+  subtotal       Float
+  taxAmount      Float       @default(0)
+  discount       Float       @default(0)
+  total          Float
+  status         OrderStatus @default(DRAFT)
+  paymentMethod  String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  couponId       String?
+  discountReason String?
+  discountSource String?
+  promotionId    String?
+  tableId        String?
+  kdsStatus      String      @default("PENDING")
+  sessionId      String?
+  coupon         Coupon?     @relation(fields: [couponId], references: [id])
+  customer       Customer?   @relation(fields: [customerId], references: [id])
+  employee       User        @relation(fields: [employeeId], references: [id])
+  promotion      Promotion?  @relation(fields: [promotionId], references: [id])
+  Session        Session?    @relation(fields: [sessionId], references: [id])
+  table          Table?      @relation(fields: [tableId], references: [id])
+  items          OrderItem[]
+
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([employeeId])
+  @@index([kdsStatus])
+  @@index([sessionId])
+  @@index([status])
+  @@index([tableId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Float
+  lineTotal Float
+  completed Boolean @default(false)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Floor {
+  id        String   @id @default(cuid())
+  name      String   @default("Main Floor")
+  rows      Int
+  cols      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tables    Table[]
+}
+
+model Table {
+  id        String      @id @default(cuid())
+  label     String
+  row       Int
+  col       Int
+  seats     Int         @default(4)
+  width     Int         @default(2)
+  height    Int         @default(2)
+  shape     TableShape  @default(round)
+  isActive  Boolean     @default(true)
+  floorId   String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  status    TableStatus @default(AVAILABLE)
+  bookings  Booking[]
+  orders    Order[]
+  floor     Floor       @relation(fields: [floorId], references: [id], onDelete: Cascade)
+}
+
+model Booking {
+  id         String    @id @default(cuid())
+  tableId    String
+  customerId String?
+  guestName  String?
+  guestPhone String?
+  guestCount Int       @default(1)
+  date       DateTime
+  startTime  String
+  endTime    String?
+  notes      String?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  table      Table     @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id             String    @id
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  openingBalance Float     @default(0)
+  closingBalance Float     @default(0)
+  status         String    @default("OPEN")
+  employeeId     String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+  Order          Order[]
+  User           User      @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([openedAt])
+  @@index([status])
+}
+
 enum Role {
   ADMIN
   EMPLOYEE
@@ -40,175 +249,4 @@ enum DiscountType {
 enum PromotionTarget {
   ORDER
   PRODUCT
-}
-
-model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String?
-  googleId  String?  @unique
-  avatar    String?
-  provider  String   @default("credentials")
-  role      Role     @default(EMPLOYEE)
-  archived  Boolean  @default(false)
-  orders    Order[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Customer {
-  id        String    @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  orders    Order[]
-  bookings  Booking[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  color     String    @default("#3b82f6")
-  products  Product[]
-  createdAt DateTime  @default(now())
-}
-
-model Product {
-  id          String       @id @default(cuid())
-  name        String
-  price       Float
-  unit        String       @default("piece")
-  tax         Float        @default(0)
-  description String?
-  categoryId  String
-  category    Category     @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
-  promotions  Promotion[]
-  createdAt   DateTime     @default(now())
-}
-
-// ── Coupon: manual code entered by employee ───────────────────────────────────
-model Coupon {
-  id             String       @id @default(cuid())
-  name           String
-  code           String       @unique
-  discountType   DiscountType @default(PERCENTAGE)
-  discountValue  Float
-  minOrderAmount Float?
-  validFrom      DateTime     @default(now())
-  validTill      DateTime?
-  maxUsage       Int?
-  currentUsage   Int          @default(0)
-  isActive       Boolean      @default(true)
-  description    String?
-  orders         Order[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-// ── Promotion: auto applied based on cart rules ───────────────────────────────
-model Promotion {
-  id             String          @id @default(cuid())
-  name           String
-  appliesTo      PromotionTarget @default(ORDER)
-  discountType   DiscountType    @default(PERCENTAGE)
-  discountValue  Float
-  minOrderAmount Float?
-  productId      String?
-  product        Product?        @relation(fields: [productId], references: [id])
-  minQuantity    Int?
-  validFrom      DateTime        @default(now())
-  validTill      DateTime?
-  isActive       Boolean         @default(true)
-  description    String?
-  orders         Order[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-}
-
-model Order {
-  id              String      @id @default(cuid())
-  orderNumber     String      @unique
-  employeeId      String
-  employee        User        @relation(fields: [employeeId], references: [id])
-  customerId      String?
-  customer        Customer?   @relation(fields: [customerId], references: [id])
-  tableId         String?
-  table           Table?      @relation(fields: [tableId], references: [id])
-  couponId        String?
-  coupon          Coupon?     @relation(fields: [couponId], references: [id])
-  promotionId     String?
-  promotion       Promotion?  @relation(fields: [promotionId], references: [id])
-  items           OrderItem[]
-  subtotal        Float
-  taxAmount       Float       @default(0)
-  discount        Float       @default(0)
-  discountSource  String?     // "COUPON" | "PROMOTION" | null
-  discountReason  String?     // coupon code or promotion name
-  total           Float
-  status          OrderStatus @default(DRAFT)
-  paymentMethod   String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-}
-
-model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  unitPrice Float
-  lineTotal Float
-}
-
-model Floor {
-  id        String   @id @default(cuid())
-  name      String   @default("Main Floor")
-  rows      Int
-  cols      Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tables    Table[]
-}
-
-model Table {
-  id        String      @id @default(cuid())
-  label     String
-  row       Int
-  col       Int
-  seats     Int         @default(4)
-  width     Int         @default(2)
-  height    Int         @default(2)
-  shape     TableShape  @default(round)
-  isActive  Boolean     @default(true)
-  status    TableStatus @default(AVAILABLE)
-  floorId   String
-  floor     Floor       @relation(fields: [floorId], references: [id], onDelete: Cascade)
-  orders    Order[]
-  bookings  Booking[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-}
-
-model Booking {
-  id         String    @id @default(cuid())
-  tableId    String
-  table      Table     @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id])
-  guestName  String?
-  guestPhone String?
-  guestCount Int       @default(1)
-  date       DateTime
-  startTime  String
-  endTime    String?
-  notes      String?
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
 }
