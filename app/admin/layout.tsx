@@ -43,7 +43,7 @@ const navItems = [
   { label: "Orders", icon: ClipboardList, href: "/admin/orders" },
   { label: "Users", icon: Users, href: "/admin/users" },
   { label: "Profile", icon: UserCircle, href: "/admin/profile" },
-  { label: "Settings", icon: Settings, href: "/admin/settings" },
+  // { label: "Settings", icon: Settings, href: "/admin/settings" },
 ];
 
 type AuthState = "loading" | "ready" | "redirecting";
@@ -250,11 +250,10 @@ export default function AdminLayout({
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
-                  isActive
+                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${isActive
                     ? "bg-[#C86446] text-white"
                     : "text-[#F3EFE8]/75 hover:bg-[#705C53]/35 hover:text-white"
-                }`}
+                  }`}
               >
                 <Icon className="size-5" />
                 {item.label}
