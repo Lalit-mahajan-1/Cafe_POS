@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import type {
   CartItem,
@@ -42,6 +42,8 @@ export default function POSClient({ user }: { user: UserSummary }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [phoneLookup, setPhoneLookup] = useState("");
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     phone: "",
@@ -56,6 +58,51 @@ export default function POSClient({ user }: { user: UserSummary }) {
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  // ── Debounced customer search ────────────────────────────────────────────
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const searchCustomers = useCallback(async (query: string) => {
+    // If empty query, load top 4 recent customers
+    const endpoint = query.trim()
+      ? `/api/pos/customers?phone=${encodeURIComponent(query.trim())}&limit=4`
+      : `/api/pos/customers?limit=4`;
+
+    setCustomerSearchLoading(true);
+    try {
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Search failed");
+      setCustomerSearchResults(data.customers || []);
+    } catch {
+      setCustomerSearchResults([]);
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  }, []);
+
+  // Trigger search whenever phoneLookup changes (debounced 300ms)
+  useEffect(() => {
+    if (!showCustomerDialog || customerMode !== "lookup") return;
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    searchTimerRef.current = setTimeout(() => {
+      void searchCustomers(phoneLookup);
+    }, 300);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [phoneLookup, showCustomerDialog, customerMode, searchCustomers]);
+
+  // Load initial results when modal opens in lookup mode
+  useEffect(() => {
+    if (showCustomerDialog && customerMode === "lookup") {
+      void searchCustomers(phoneLookup);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCustomerDialog, customerMode]);
 
   // ── Load floor plan ──────────────────────────────────────────────────────
   const loadFloorPlan = useCallback(async () => {
@@ -180,34 +227,12 @@ export default function POSClient({ user }: { user: UserSummary }) {
   };
 
   // ── Customer ─────────────────────────────────────────────────────────────
-  const lookupCustomer = async () => {
-    if (!phoneLookup.trim()) {
-      setMessage("Enter customer phone number first.");
-      return;
-    }
-    setLoading(true);
+  const handleSelectExistingCustomer = (selectedCustomer: Customer) => {
+    setCustomer(selectedCustomer);
+    setPhoneLookup("");
+    setCustomerSearchResults([]);
     setMessage("");
-    try {
-      const res = await fetch(
-        `/api/pos/customers?phone=${encodeURIComponent(phoneLookup.trim())}`
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to find customer");
-      if (data.customer) {
-        setCustomer(data.customer);
-        setShowCustomerDialog(false);
-      } else {
-        setCustomerMode("new");
-        setNewCustomer((c) => ({ ...c, phone: phoneLookup.trim() }));
-        setMessage("No customer found. Fill in details to create one.");
-      }
-    } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Customer lookup failed"
-      );
-    } finally {
-      setLoading(false);
-    }
+    setShowCustomerDialog(false);
   };
 
   const createCustomer = async () => {
@@ -230,6 +255,13 @@ export default function POSClient({ user }: { user: UserSummary }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenCustomerModal = () => {
+    setPhoneLookup("");
+    setCustomerSearchResults([]);
+    setMessage("");
+    setShowCustomerDialog(true);
   };
 
   // ── Product CRUD ──────────────────────────────────────────────────────────
@@ -334,7 +366,6 @@ export default function POSClient({ user }: { user: UserSummary }) {
         body: JSON.stringify(payload),
       });
 
-      // Always parse JSON — even error responses have a body
       let data: Record<string, unknown>;
       try {
         data = await res.json();
@@ -426,7 +457,7 @@ export default function POSClient({ user }: { user: UserSummary }) {
           <div className="space-y-5">
             <CustomerBar
               customer={customer}
-              onOpenCustomerModal={() => setShowCustomerDialog(true)}
+              onOpenCustomerModal={handleOpenCustomerModal}
             />
             <ProductGrid
               products={products}
@@ -454,7 +485,6 @@ export default function POSClient({ user }: { user: UserSummary }) {
             onCouponChange={setCouponCode}
             onPaymentChange={setPaymentMethod}
             onConfirmOrder={(promotionId?: string) => {
-              // Override confirmOrder to accept promotionId
               confirmOrderWithPromotion(promotionId);
             }}
           />
@@ -479,12 +509,13 @@ export default function POSClient({ user }: { user: UserSummary }) {
         mode={customerMode}
         phoneLookup={phoneLookup}
         newCustomer={newCustomer}
-        loading={loading}
+        loading={customerSearchLoading}
         message={message}
+        existingCustomers={customerSearchResults}
         onModeChange={setCustomerMode}
         onPhoneChange={setPhoneLookup}
         onNewCustomerChange={setNewCustomer}
-        onLookup={lookupCustomer}
+        onSelectExistingCustomer={handleSelectExistingCustomer}
         onCreate={createCustomer}
         onClose={() => setShowCustomerDialog(false)}
       />

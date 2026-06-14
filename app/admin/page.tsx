@@ -319,16 +319,16 @@ function SalesChart({ points: salesPoints }: { points: SalesPoint[] }) {
             />
           ))}
           <text x="0" y="45" className="fill-[#705C53] text-[12px]">
-            ₹{Math.round(max)}
+            ${Math.round(max)}
           </text>
           <text x="8" y="95" className="fill-[#705C53] text-[12px]">
-            ₹{Math.round(max * 0.66)}
+            ${Math.round(max * 0.66)}
           </text>
           <text x="12" y="145" className="fill-[#705C53] text-[12px]">
-            ₹{Math.round(max * 0.33)}
+            ${Math.round(max * 0.33)}
           </text>
           <text x="18" y="195" className="fill-[#705C53] text-[12px]">
-            ₹0
+            $0
           </text>
           <polygon points={areaPoints} fill="#7FB2D9" opacity="0.55" />
           <polyline
@@ -695,14 +695,14 @@ export default function AdminDashboard() {
       },
       {
         label: "Revenue",
-        value: current?.revenue.value ?? "₹0.00",
+        value: current?.revenue.value ?? "$0.00",
         change: current?.revenue.change ?? "+0.0%",
         helper: current?.revenue.helper ?? "Since previous period",
         icon: TrendingUp,
       },
       {
         label: "Average Order",
-        value: current?.averageOrder.value ?? "₹0.00",
+        value: current?.averageOrder.value ?? "$0.00",
         change: current?.averageOrder.change ?? "+0.0%",
         helper: current?.averageOrder.helper ?? "Since previous period",
         icon: CalendarDays,

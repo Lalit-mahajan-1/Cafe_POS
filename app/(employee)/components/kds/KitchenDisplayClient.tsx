@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChefHat, Clock3, Minus, ReceiptText, RotateCcw, X, XCircle } from "lucide-react";
 import CartSidebar from "../pos/CartSidebar";
 import type { CartItem, Totals } from "../pos/pos-types";
@@ -426,7 +426,7 @@ export default function KitchenDisplayClient({
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <strong>{formatMoney(order.total)}</strong>
                   <div className="flex gap-2">
-                    {order.status === "DRAFT" && (
+                    {order.status === "DRAFT" ? (
                       <button
                         onClick={() => handleOpenPayModal(order)}
                         className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] shadow-sm hover:shadow-md cursor-pointer"
@@ -434,26 +434,25 @@ export default function KitchenDisplayClient({
                         <ReceiptText className="size-4" aria-hidden="true" />
                         Pay
                       </button>
-                    )}
-                    {order.status === "PAID" && (
-                      <button
-                        onClick={() => completeOrder(order.id)}
-                        disabled={isCompleting || isCancelling || isCompleted || isCancelled}
-                        className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60 cursor-pointer"
-                      >
-                        <Check className="size-4" aria-hidden="true" />
-                        {isCompleting ? "Updating..." : "Done"}
-                      </button>
-                    )}
-                    {order.status === "DRAFT" && (
-                      <button
-                        onClick={() => cancelOrder(order.id)}
-                        disabled={isCancelling || isCompleting || isCompleted || isCancelled}
-                        className="inline-flex items-center gap-2 rounded-md border border-[#C86446] px-4 py-2 text-sm font-semibold text-[#C86446] transition hover:bg-[#C86446] hover:text-white disabled:opacity-60 cursor-pointer"
-                      >
-                        <XCircle className="size-4" aria-hidden="true" />
-                        {isCancelling ? "Cancelling..." : "Cancel"}
-                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => cancelOrder(order.id)}
+                          disabled={isCancelling || isCompleting || isCompleted || isCancelled}
+                          className="inline-flex items-center gap-2 rounded-md border border-[#C86446] px-4 py-2 text-sm font-semibold text-[#C86446] transition hover:bg-[#C86446] hover:text-white disabled:opacity-60 cursor-pointer"
+                        >
+                          <XCircle className="size-4" aria-hidden="true" />
+                          {isCancelling ? "Cancelling..." : "Cancel"}
+                        </button>
+                        <button
+                          onClick={() => completeOrder(order.id)}
+                          disabled={isCompleting || isCancelling || isCompleted || isCancelled}
+                          className="inline-flex items-center gap-2 rounded-md bg-[#C86446] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A84F38] disabled:opacity-60 cursor-pointer"
+                        >
+                          <Check className="size-4" aria-hidden="true" />
+                          {isCompleting ? "Updating..." : "Done"}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
