@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { recalculateCart } from "@/services/discount.service";
+import { sendReceiptEmail } from "@/services/email.service";
 
 export async function PATCH(
   req: NextRequest,
@@ -155,6 +156,10 @@ export async function PATCH(
 
       return updated;
     });
+
+    if (status === "PAID" && updatedOrder.customer?.email) {
+      sendReceiptEmail(updatedOrder).catch(console.error);
+    }
 
     return NextResponse.json({ order: updatedOrder });
   } catch (error) {
