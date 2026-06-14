@@ -146,7 +146,10 @@ export default function BookSeatClient({ user, isAdmin }: BookSeatClientProps) {
       setRows(plan.rows);
       setCols(plan.cols);
       setTables(plan.tables);
-      setSelectedId(plan.tables[0]?.id ?? "");
+      setSelectedId((current) => {
+        if (current && plan.tables.some((t) => t.id === current)) return current;
+        return plan.tables[0]?.id ?? "";
+      });
       setSavedAt("Loaded from database");
     } catch {
       setSavedAt("Could not load saved layout");
@@ -159,10 +162,10 @@ export default function BookSeatClient({ user, isAdmin }: BookSeatClientProps) {
     loadFloorPlan();
   }, [loadFloorPlan]);
 
-  // Auto-refresh in view mode every 30s
+  // Auto-refresh in view mode every 5s for near real-time sync
   useEffect(() => {
     if (viewMode !== "view") return;
-    const interval = setInterval(() => loadFloorPlan(), 30000);
+    const interval = setInterval(() => loadFloorPlan(), 5000);
     return () => clearInterval(interval);
   }, [viewMode, loadFloorPlan]);
 
@@ -358,6 +361,20 @@ export default function BookSeatClient({ user, isAdmin }: BookSeatClientProps) {
       await loadFloorPlan();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error completing order");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  // ── Force unreserve a table ────────────────────────────────────────────────
+  const handleUnreserve = async (tableId: string) => {
+    if (!isAdmin) return;
+    setIsCompleting(true); // Reusing isCompleting state for the loading spinner
+    try {
+      await floorPlanService.updateTableStatus(tableId, "AVAILABLE");
+      await loadFloorPlan();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error unreserving table");
     } finally {
       setIsCompleting(false);
     }
@@ -868,6 +885,22 @@ export default function BookSeatClient({ user, isAdmin }: BookSeatClientProps) {
                       >
                         <CalendarPlus className="w-4 h-4" />
                         Book This Table
+                      </button>
+                    )}
+
+                    {/* Unreserve this table button — Admin only */}
+                    {isAdmin && selectedTable.status === "RESERVED" && (
+                      <button
+                        onClick={() => handleUnreserve(selectedTable.id)}
+                        disabled={isCompleting}
+                        className="flex w-full items-center justify-center gap-2 border border-amber-300 bg-amber-50 text-amber-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-amber-100 transition-all duration-200 cursor-pointer disabled:opacity-60 mt-2"
+                      >
+                        {isCompleting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                        Unreserve Table
                       </button>
                     )}
                   </>
